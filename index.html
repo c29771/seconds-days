@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>秒与天 · 时间计数器</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="none" stroke="%23171717" stroke-width="3"/><circle cx="16" cy="16" r="3" fill="%23C62F1F"/></svg>'>
+<style>
+:root{
+  --paper:#F1F0EC;
+  --ink:#171717;
+  --gray:#8B8881;
+  --faint:#ABA8A0;
+  --hairline:#D8D5CD;
+  --accent:#C62F1F;
+  --mono:"SF Mono","Cascadia Code","JetBrains Mono",Consolas,"Courier New",monospace;
+  --sans:"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Noto Sans SC",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;overflow-x:hidden}
+body{min-height:100%;overflow-x:hidden;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+main{max-width:1020px;margin:0 auto;padding:28px 20px 56px}
+@media (min-width:768px){main{padding:56px 40px 80px}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ===== 顶栏 ===== */
+.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--hairline);padding-bottom:14px}
+.brand{font-family:var(--mono);font-size:17px;letter-spacing:.12em;line-height:1}
+.brand small{color:var(--gray);font-size:10px;margin-left:8px;letter-spacing:.18em}
+.top-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.clock{font-family:var(--mono);font-size:13px;color:var(--gray)}
+.unit-switch{display:flex;border:1px solid var(--hairline)}
+.unit-switch button{font-family:var(--mono);font-size:12px;color:var(--gray);background:none;border:none;padding:7px 12px;cursor:pointer;min-height:36px;line-height:1}
+.unit-switch button.on{background:var(--ink);color:var(--paper)}
+.unit-switch button:hover:not(.on){color:var(--ink)}
+.settings-btn{font-family:var(--sans);font-size:13px;color:var(--ink);background:none;border:1px solid var(--ink);padding:6px 14px;cursor:pointer;min-height:36px}
+.settings-btn:hover{background:var(--ink);color:var(--paper)}
+.date-line{font-family:var(--mono);font-size:12px;color:var(--gray);margin:16px 0 4px}
+
+/* ===== 天文台 ===== */
+.obs .obs-list{display:grid;gap:8px}
+.obs-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--hairline);border-radius:8px;background:var(--paper);text-decoration:none;color:inherit;transition:border-color .15s}
+.obs-item:hover{border-color:var(--ink)}
+.obs-item .ob-name{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
+.obs-item .ob-meta{flex:1;min-width:0;font-size:12px;color:var(--gray);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obs-item .ob-go{font-family:var(--mono);font-size:12px;color:var(--accent);white-space:nowrap}
+
+/* ===== 模块折叠 ===== */
+body.modules-folded .sec,
+body.modules-folded .cards{display:none}
+.fold-btn{font-family:var(--sans);font-size:13px;color:var(--gray);background:none;border:1px solid var(--hairline);padding:6px 14px;cursor:pointer;min-height:36px}
+.fold-btn:hover{border-color:var(--ink);color:var(--ink)}
+
+/* ===== 侧边模块索引 ===== */
+.side-index{position:fixed;left:18px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:5}
+.side-index a{font-family:var(--mono);font-size:11px;color:var(--gray);text-decoration:none;padding:4px 8px;border:1px solid transparent;border-radius:6px;letter-spacing:.05em;transition:color .15s,border-color .15s}
+.side-index a:hover{color:var(--ink);border-color:var(--hairline)}
+.side-index a.on{color:var(--ink);border-color:var(--ink);background:var(--paper)}
+@media (max-width:900px){.side-index{display:none}}
+
+/* ===== 番茄钟轮次与日志 ===== */
+.pomo-rounds{display:flex;gap:6px;justify-content:center;margin:2px 0 10px}
+.pomo-rounds i{width:10px;height:10px;border:1px solid var(--hairline);border-radius:50%;display:inline-block;background:transparent;transition:background .2s,border-color .2s}
+.pomo-rounds i.done{background:var(--ink);border-color:var(--ink)}
+.pomo-rounds i.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.pomo-log{max-height:170px;overflow:auto;border:1px solid var(--hairline);border-radius:8px;background:var(--paper);font-family:var(--mono);font-size:12px;color:var(--gray)}
+.pomo-log .log-row{display:flex;justify-content:space-between;gap:8px;padding:6px 10px;border-bottom:1px solid var(--hairline)}
+.pomo-log .log-row:last-child{border-bottom:none}
+.pomo-log .log-how{white-space:nowrap}
+.pomo-log .log-how.auto{color:var(--ink)}
+.pomo-log .log-how.skip{color:var(--accent)}
+
+/* ===== 主数字 ===== */
+.hero{display:flex;flex-direction:column;align-items:flex-start;gap:24px;padding:28px 0 8px}
+@media (min-width:768px){.hero{flex-direction:row;align-items:center;justify-content:space-between}}
+.hero-num{font-family:var(--mono);font-size:clamp(54px,17vw,126px);line-height:1;font-weight:400;letter-spacing:-.02em;white-space:nowrap;min-width:0;overflow:hidden}
+@media (max-width:400px){.hero-num{font-size:clamp(40px,15vw,54px)}}
+.hero-num small{font-size:.34em;color:var(--gray);letter-spacing:.12em;margin-left:.5em}
+.hero-label{font-size:13px;color:var(--gray);margin-top:12px;letter-spacing:.06em}
+.ring-wrap{width:150px;height:150px;position:relative;flex:none;align-self:center}
+@media (min-width:768px){.ring-wrap{width:210px;height:210px;align-self:auto}}
+.ring{width:100%;height:100%;transform:rotate(-90deg)}
+.ring-track{fill:none;stroke:var(--hairline);stroke-width:1.5}
+.ring-progress{fill:none;stroke:var(--accent);stroke-width:1.5;transition:stroke-dashoffset 1s linear}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.ring-center b{font-family:var(--mono);font-size:24px;font-weight:400;line-height:1}
+.ring-center span{font-family:var(--mono);font-size:10px;color:var(--gray);letter-spacing:.2em}
+
+/* ===== 今日进度条 ===== */
+.day-bar{position:relative;height:2px;background:var(--hairline);margin:10px 0 10px}
+.day-bar i{position:absolute;left:0;top:0;bottom:0;background:var(--ink);width:0}
+.meta-unit{font-style:normal}
+
+/* ===== 番茄钟 ===== */
+.pomo-done{font-family:var(--mono);font-size:12px;color:var(--gray)}
+.pomo-body{display:flex;flex-direction:column;align-items:center;gap:22px;padding:8px 0 4px}
+@media (min-width:768px){.pomo-body{flex-direction:row;justify-content:center;gap:52px}}
+.pomo-ring-wrap{width:190px;height:190px;position:relative;flex:none}
+.pomo-ring{width:100%;height:100%;transform:rotate(-90deg)}
+.pomo-prog{fill:none;stroke:var(--accent);stroke-width:2;transition:stroke-dashoffset .5s linear}
+.pomo.rest .pomo-prog{stroke:var(--ink)}
+.pomo-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center}
+.pomo-num{font-family:var(--mono);font-size:clamp(28px,8vw,46px);line-height:1;white-space:nowrap}
+.pomo-num small{font-size:.38em;color:var(--gray);margin-left:.4em;letter-spacing:.08em}
+.pomo-stage{font-family:var(--mono);font-size:12px;color:var(--gray);letter-spacing:.08em}
+.pomo-side{display:flex;flex-direction:column;align-items:center}
+.pomo-ctrl{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.pomo-btn{border:1px solid var(--ink);background:none;padding:10px 18px;font-size:13px;cursor:pointer;min-height:44px;font-family:var(--sans)}
+.pomo-btn.main{background:var(--ink);color:var(--paper)}
+.pomo-btn.dim{border-color:var(--hairline);color:var(--gray)}
+.pomo-legend{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:16px;line-height:1.8;text-align:center}
+
+/* ===== 通用区块 ===== */
+.sec{border-top:1px solid var(--hairline);padding-top:22px;margin-top:40px}
+.sec-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.sec-head h2{font-size:13px;font-weight:500;letter-spacing:.22em}
+.sec-note{font-size:12px;color:var(--gray)}
+.pbtn-row{display:flex;gap:8px;flex-wrap:wrap}
+.pbtn{border:1px solid var(--hairline);background:none;color:var(--gray);font-size:12px;padding:6px 12px;cursor:pointer;min-height:36px;font-family:var(--mono)}
+.pbtn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.pbtn:hover:not(.on){color:var(--ink);border-color:var(--ink)}
+
+/* ===== 太阳系 ===== */
+.solar{display:flex;flex-direction:column;align-items:center}
+.solar-chart{width:100%;max-width:480px;height:auto;display:block;margin:0 auto;overflow:visible}
+.solar-legend{font-family:var(--mono);font-size:11px;color:var(--gray);margin-top:14px;text-align:center;line-height:1.9}
+.solar-note{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:4px;text-align:center}
+.solar-tip{position:fixed;z-index:9;background:var(--paper);border:1px solid var(--ink);padding:8px 12px;font-family:var(--mono);font-size:12px;line-height:1.6;pointer-events:none;box-shadow:4px 4px 0 rgba(23,23,23,.08);max-width:280px}
+.solar-tip b{font-weight:500}
+.solar-tip .tip-sub{color:var(--gray)}
+.solar-tip .tip-desc{display:block;color:var(--gray);font-size:11px;line-height:1.75;margin-top:5px;padding-top:5px;border-top:1px solid var(--hairline)}
+#solarChart{cursor:crosshair}
+#solarChart circle.pl{transform-box:fill-box;transform-origin:center;transition:transform .18s ease;cursor:pointer}
+#solarChart circle.pl-hit{pointer-events:all;cursor:pointer}
+#solarChart circle.pl:hover{transform:scale(1.9)}
+
+/* ===== 可拖动时间轴 ===== */
+.axis{margin-top:22px;width:100%;max-width:640px}
+.axis-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.axis-label{font-size:12px;color:var(--gray);letter-spacing:.08em}
+.axis-offset{font-family:var(--mono);font-size:13px;max-width:62%;overflow:hidden;white-space:nowrap}
+.axis-offset b{font-weight:500}
+.back-btn{border:1px solid var(--hairline);background:none;color:var(--gray);font-size:12px;padding:5px 12px;cursor:pointer;min-height:36px;visibility:hidden;font-family:var(--sans)}
+.back-btn:hover{border-color:var(--ink);color:var(--ink)}
+.axis-rail{position:relative;height:30px;cursor:ew-resize;touch-action:none;user-select:none}
+.axis-track{position:absolute;left:0;right:0;top:14px;height:2px;background:var(--hairline)}
+.axis-fill{position:absolute;left:0;top:14px;height:2px;background:var(--ink)}
+.axis-handle{position:absolute;top:14px;width:13px;height:13px;border-radius:50%;background:var(--paper);border:1.5px solid var(--ink);transform:translate(-50%,-50%);pointer-events:none}
+.axis-ends{display:flex;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:10px;color:var(--faint)}
+.axis-ends>span{min-width:0;overflow:hidden;white-space:nowrap}
+.axis-presets{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.preset-btn{border:1px solid var(--hairline);background:none;color:var(--gray);font-size:12px;padding:4px 10px;cursor:pointer;min-height:32px;font-family:var(--mono)}
+.preset-btn.on{border-color:var(--ink);color:var(--ink)}
+.axis-rot{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:12px;line-height:1.8}
+
+/* ===== 时刻线 ===== */
+.moments-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.moments-tools span{font-size:12px;color:var(--gray)}
+.moments-edit{border:1px solid var(--hairline);background:none;color:var(--gray);font-size:12px;padding:5px 12px;cursor:pointer;min-height:36px}
+.moments-edit:hover{border-color:var(--ink);color:var(--ink)}
+.timeline{position:relative;height:66px;margin:0 6px}
+.tl-line{position:absolute;left:0;right:0;top:19px;height:1px;background:var(--ink)}
+.tl-tick{position:absolute;top:15px;width:1px;height:9px;background:var(--ink)}
+.tl-end{position:absolute;top:15px;width:1px;height:9px;background:var(--ink)}
+.tl-dot{position:absolute;top:19px;transform:translateX(-50%);text-align:center}
+.tl-dot i{display:block;width:7px;height:7px;border-radius:50%;background:var(--ink);margin:0 auto}
+.tl-dot .tl-tag{display:block;margin-top:9px;font-family:var(--mono);font-size:11px;color:var(--gray);white-space:nowrap;transform:translateX(calc(-50% + .5px))}
+.tl-now{position:absolute;top:19px;transform:translateX(-50%);text-align:center;z-index:2}
+.tl-now i{display:block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin:0 auto}
+.tl-now .tl-tag{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-family:var(--mono);font-size:11px;color:var(--accent);white-space:nowrap;background:var(--paper);padding:0 4px}
+.moment-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+@media (max-width:600px){.timeline{display:none}}
+.chip{display:flex;align-items:baseline;gap:10px;padding:10px 12px;border:1px solid var(--hairline);font-family:var(--mono);font-size:13px;max-width:100%}
+.chip b{font-weight:500}
+.chip .ch-time{color:var(--gray)}
+.chip .ch-sec{margin-left:auto;font-weight:500;white-space:nowrap;overflow:hidden}
+
+/* ===== 卡片 ===== */
+.cards{display:grid;grid-template-columns:1fr;gap:12px;margin-top:40px}
+@media (min-width:521px){.cards{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:1080px){.cards{grid-template-columns:repeat(5,1fr)}}
+.card{border:1px solid var(--hairline);padding:18px 18px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card-label{font-size:12px;color:var(--gray);letter-spacing:.08em}
+.card-num{font-family:var(--mono);font-size:clamp(24px,6vw,34px);line-height:1.1;white-space:nowrap;min-height:1.2em;overflow:hidden}
+.cards.unit-s .card-num{font-size:clamp(15px,3.4vw,21px)}
+.card-num em{font-style:normal;font-size:.5em;color:var(--gray);margin-left:.35em}
+.card-sub{font-family:var(--mono);font-size:11px;color:var(--gray);min-height:1.2em}
+.card.unset{cursor:pointer}
+.card.unset:hover{border-color:var(--ink)}
+.card.unset .card-num{color:var(--faint)}
+
+/* ===== 页脚 ===== */
+.foot{margin-top:48px;padding-top:16px;border-top:1px solid var(--hairline);font-family:var(--mono);font-size:11px;color:var(--gray);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+/* ===== 设置弹层 ===== */
+.overlay{position:fixed;inset:0;background:rgba(23,23,23,.32);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:10;overflow:auto;overscroll-behavior:contain}
+.overlay[hidden]{display:none}
+.modal{background:var(--paper);border:1px solid var(--ink);max-width:520px;width:100%;padding:26px 24px;box-shadow:8px 8px 0 rgba(23,23,23,.1)}
+#overlay{align-items:center;overflow:hidden}
+#overlay .modal{display:flex;flex-direction:column;max-height:88vh;padding:0}
+.settings-bar{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:14px 22px 12px;border-bottom:1px solid var(--ink);background:var(--paper);z-index:3}
+.settings-bar h2{margin:0;font-size:22px}
+.settings-index{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 auto}
+.idx-btn{font:500 12px var(--mono);padding:5px 10px;border:1px solid var(--hairline);background:transparent;color:var(--ink);cursor:pointer}
+.idx-btn:hover{border-color:var(--ink)}
+.settings-actions{display:flex;gap:10px;margin-left:auto}
+.settings-footer{flex:0 0 auto;display:flex;justify-content:flex-end;gap:10px;padding:12px 22px 16px;border-top:1px solid var(--ink);background:var(--paper)}
+.vel-c{display:flex;flex-direction:column;gap:10px}
+.vel-crow{display:flex;flex-direction:column;gap:6px;border:1px solid var(--hairline);padding:10px 12px}
+.vel-crow-in{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vel-crow-in input[type="text"]{width:110px}
+.vel-crow-in select{min-width:118px}
+.vc-warn{color:var(--accent);font:600 13px var(--mono)}
+.vc-summary{font:400 13px var(--mono);color:var(--gray);flex:1;min-width:150px}
+.settings-body{position:relative;overflow-y:auto;padding:14px 22px 24px;flex:1 1 auto;display:flex;flex-direction:column;overscroll-behavior:contain}
+.settings-body .field:has(#addMoment){order:1}
+.settings-body .field:has(#bYear){order:2}
+.settings-body .field:has(#tYear){order:3}
+.settings-body .field:has(#pWork){order:4}
+.settings-body .field:has(#pomoLogClear){order:5}
+.settings-body .field:has(#addCustom){order:6}
+.settings-body .field:has(#axisLenInput){order:7}
+.settings-body .field:has(#dirRow){order:8}
+.settings-body .field:has(#velRow){order:9}
+.settings-body .field:has(#vcFOn){order:10}
+.settings-body .field:has(#unitRows){order:11}
+.settings-body .field:has(#addCus){order:12}
+.settings-body .field:has(#orderRows){order:13}
+.settings-body .field:has(#collapseChk){order:14}
+.settings-body .field:has(#indexChk){order:15}
+.settings-body .field:has(#exportBtn){order:16}
+@media (max-width:380px){.settings-bar{padding:12px 14px 10px}.settings-body{padding:12px 14px 18px}.settings-footer{padding:10px 14px 14px}}
+@media (max-width:380px){.modal{padding:22px 16px}}
+.poster-modal{max-width:440px}
+.poster-preview{background:var(--hairline);padding:10px;margin-bottom:16px}
+.poster-preview img{display:block;width:100%;height:auto;border:1px solid var(--hairline)}
+.modal h2{font-size:15px;font-weight:500;letter-spacing:.18em;margin-bottom:20px}
+.field{margin-bottom:18px}
+.field>label{display:block;font-size:12px;color:var(--gray);margin-bottom:8px;letter-spacing:.08em}
+.field-hint{font-size:11px;color:var(--faint);margin-top:6px;line-height:1.6}
+.birth-inputs{display:flex;gap:8px}
+.birth-inputs input{flex:1;min-width:0}
+input[type=number],input[type=text],input[type=time]{font-family:var(--mono);font-size:16px;color:var(--ink);background:transparent;border:1px solid var(--hairline);padding:10px 12px;min-width:0;width:100%}
+select{font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--paper);border:1px solid var(--hairline);padding:8px 10px;min-height:36px;border-radius:0}
+input:focus{outline:none;border-color:var(--ink)}
+.mrow{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.orow .o-name{flex:1;font-family:var(--mono);font-size:13px}
+.orow .u-btn{padding:6px 10px;min-height:30px}
+.mrow .mLabel{flex:1;min-width:0}
+.mrow input[type=time]{width:104px;flex:none}
+.del-btn{flex:none;border:1px solid var(--hairline);background:none;color:var(--gray);width:44px;height:44px;cursor:pointer;font-size:16px;line-height:1}
+.del-btn:hover{border-color:var(--ink);color:var(--ink)}
+.add-btn{width:100%;border:1px dashed var(--hairline);background:none;color:var(--gray);padding:10px;font-size:13px;cursor:pointer;min-height:44px}
+.add-btn:hover{border-color:var(--ink);color:var(--ink)}
+.urow{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--hairline);margin-bottom:8px;min-height:44px}
+.urow .u-name{font-family:var(--mono);font-size:14px;width:44px;flex:none}
+.urow .u-desc{font-size:12px;color:var(--gray);flex:1;min-width:0}
+.urow .u-btn{border:1px solid var(--ink);background:none;padding:8px 14px;font-size:12px;cursor:pointer;flex:none;min-height:36px;font-family:var(--sans)}
+.urow .u-btn.on{background:var(--ink);color:var(--paper)}
+.urow .u-btn.dim{border-color:var(--hairline);color:var(--gray)}
+.urow .u-confirm{font-size:12px;color:var(--accent);flex:1;min-width:0;line-height:1.4}
+.cus-row input{min-width:0;width:90px;padding:8px 10px;border:1px solid var(--hairline);background:none;font-family:var(--mono);font-size:13px;box-sizing:border-box}
+.cus-row .cus-name{flex:1;width:auto}
+@media (min-width:768px){.cus-row input{width:140px}}
+.pomo-set{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+.pomo-set label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray)}
+.pomo-set input{width:70px;padding:8px 10px;border:1px solid var(--hairline);background:none;font-family:var(--mono);font-size:13px;box-sizing:border-box}
+.check-line{display:flex;align-items:center;gap:8px;font-size:13px;margin:8px 0;cursor:pointer}
+.check-line input{width:16px;height:16px;flex:none}
+.crow{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.crow .cName{flex:1.4;min-width:0}
+.crow .cPer{flex:1;min-width:0}
+.crow .cA{flex:1;min-width:0}
+.crow .crow-label{font-size:10px;color:var(--faint);font-family:var(--mono)}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+.btn{border:1px solid var(--ink);background:none;padding:10px 20px;font-size:13px;cursor:pointer;min-height:44px}
+.btn:hover{background:var(--ink);color:var(--paper)}
+.btn-primary{background:var(--ink);color:var(--paper)}
+</style>
+</head>
+<body>
+<nav class="side-index" id="sideIndex" aria-label="模块索引"></nav>
+<main>
+  <!-- ===== 顶栏 ===== -->
+  <header class="top">
+    <div class="brand">秒与天<small>SECONDS · DAYS</small></div>
+    <div class="top-right">
+      <span class="clock" id="clock">--:--:--</span>
+      <div class="unit-switch" id="unitSwitch" role="group" aria-label="显示单位"></div>
+      <button type="button" class="fold-btn" id="foldBtn">展开全部</button>
+      <button type="button" class="settings-btn" id="posterBtn">海报</button>
+      <button type="button" class="settings-btn" id="settingsBtn">设置</button>
+    </div>
+  </header>
+  <p class="date-line" id="dateLine"></p>
+
+  <!-- ===== 主数字 ===== -->
+  <section class="hero">
+    <div class="hero-text">
+      <div class="hero-num"><span id="dayElapsed">0</span><small id="heroUnit">秒</small></div>
+      <div class="hero-label" id="heroLabel">今日已过（秒）</div>
+    </div>
+    <div class="ring-wrap" aria-hidden="true">
+      <svg class="ring" viewBox="0 0 200 200">
+        <circle class="ring-track" cx="100" cy="100" r="88"/>
+        <circle class="ring-progress" id="ringProgress" cx="100" cy="100" r="88"/>
+      </svg>
+      <div class="ring-center"><b id="ringPct">0%</b><span>今日进度</span></div>
+    </div>
+  </section>
+  <div class="day-bar"><i id="dayBar"></i></div>
+
+  <!-- ===== 今日时刻 ===== -->
+  <section class="sec" id="momentsSec">
+    <div class="sec-head">
+      <h2>今日时刻</h2>
+      <div class="moments-tools">
+        <span id="momentHint"></span>
+        <button type="button" class="moments-edit" id="momentsEditBtn">自定义</button>
+      </div>
+    </div>
+    <div class="timeline" aria-hidden="true">
+      <div class="tl-line"></div>
+      <div class="tl-tick" style="left:0%"></div>
+      <div class="tl-tick" style="left:25%"></div>
+      <div class="tl-tick" style="left:50%"></div>
+      <div class="tl-tick" style="left:75%"></div>
+      <div class="tl-end" style="left:100%"></div>
+      <div class="tl-now" id="tlNow" style="left:0%"><i></i><span class="tl-tag">--:--</span></div>
+      <div class="tl-dots" id="tlDots"></div>
+    </div>
+    <div class="moment-list" id="momentChips"></div>
+  </section>
+
+  <!-- ===== 番茄钟 ===== -->
+  <section class="sec pomo" id="pomoSec">
+    <div class="sec-head">
+      <h2>番茄钟</h2>
+      <div class="pomo-done" id="pomoDone">今日 0 个番茄</div>
+    </div>
+    <div class="pomo-body">
+      <div class="pomo-ring-wrap" aria-hidden="true">
+        <svg class="pomo-ring" viewBox="0 0 200 200">
+          <circle class="ring-track" cx="100" cy="100" r="88"/>
+          <circle class="pomo-prog" id="pomoProg" cx="100" cy="100" r="88"/>
+        </svg>
+        <div class="pomo-center">
+          <div class="pomo-num"><span id="pomoNum">--</span><small id="pomoUnit">秒</small></div>
+          <div class="pomo-stage" id="pomoStage">待开始</div>
+        </div>
+      </div>
+      <div class="pomo-side">
+        <div class="pomo-ctrl">
+          <button type="button" class="pomo-btn main" id="pomoStart">开始</button>
+          <button type="button" class="pomo-btn" id="pomoSkip">跳过</button>
+          <button type="button" class="pomo-btn dim" id="pomoReset">重置</button>
+        </div>
+        <div class="pomo-rounds" id="pomoRounds" role="img" aria-label="专注轮次"></div>
+        <div class="pomo-legend" id="pomoLegend"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 太阳系 ===== -->
+  <section class="sec solar" id="solarSec">
+    <div class="sec-head">
+      <h2>太阳系</h2>
+      <div class="pbtn-row" id="propRow" role="group" aria-label="轨道比例">
+        <button type="button" class="pbtn" data-p="real">真实比例</button>
+        <button type="button" class="pbtn" data-p="inner4">内四行星比例</button>
+        <button type="button" class="pbtn" data-p="comfort">适宜比例</button>
+      </div>
+      <button type="button" class="pbtn" id="velSwitch" title="点击循环切换传播速度标量">更换速度：光速</button>
+    </div>
+    <svg class="solar-chart" id="solarChart" viewBox="0 0 520 520" role="img" aria-label="八大行星绕日公转示意"></svg>
+    <div class="solar-tip" id="solarTip" hidden></div>
+    <div class="solar-legend" id="solarLegend"></div>
+    <div class="solar-note">位置基于 J2000 平黄经与真实公转周期（近似圆轨道），随真实时间与拖动偏移旋转</div>
+
+    <!-- 可拖动时间轴 -->
+    <div class="axis">
+      <div class="axis-top">
+        <span class="axis-label">时间轴</span>
+        <span class="axis-offset" id="axisOffset"><b>现在</b></span>
+        <button type="button" class="back-btn" id="axisBack">回到现在</button>
+      </div>
+      <div class="axis-rail" id="axisRail" role="slider" aria-label="拖动时间轴" aria-valuemin="0" aria-valuemax="365" aria-valuenow="0" tabindex="0">
+        <div class="axis-track"></div>
+        <div class="axis-fill" id="axisFill"></div>
+        <div class="axis-handle" id="axisHandle"></div>
+      </div>
+      <div class="axis-ends"><span>今天</span><span id="axisEnd">+365 天</span></div>
+      <div class="axis-presets" id="axisPresets"></div>
+      <div class="axis-rot" id="axisRot"></div>
+    </div>
+  </section>
+
+  <!-- ===== 天文台 ===== -->
+  <section class="sec obs" id="obsSec">
+    <h2 class="sec-title">天文台</h2>
+    <p class="sec-sub">通向各主要天文台</p>
+    <div class="obs-list" id="obsList"></div>
+  </section>
+
+  <!-- ===== 时间卡片 ===== -->
+  <section class="cards" id="cards">
+    <article class="card">
+      <div class="card-label">距今日结束</div>
+      <div class="card-num"><span id="cardDayLeftNum">0</span><em id="cardDayLeftUnit" class="meta-unit">秒</em></div>
+      <div class="card-sub" id="dayLeftSub">今天剩余</div>
+    </article>
+    <article class="card">
+      <div class="card-label">距下个整点</div>
+      <div class="card-num"><span id="hourLeftNum">0</span><em id="hourUnit" class="meta-unit">秒</em></div>
+      <div class="card-sub" id="hourSub">--:00 整点</div>
+    </article>
+    <article class="card" id="bdCard">
+      <div class="card-label">距生日</div>
+      <div class="card-num"><span id="bdDays">--</span><em id="bdUnit" class="meta-unit">天</em></div>
+      <div class="card-sub" id="bdSub">未设置生日</div>
+    </article>
+    <article class="card">
+      <div class="card-label">出生至今</div>
+      <div class="card-num"><span id="aliveDays">--</span><em id="aliveUnit" class="meta-unit">天</em></div>
+      <div class="card-sub" id="aliveSub">未设置生日</div>
+    </article>
+    <article class="card" id="tgtCard">
+      <div class="card-label">目标日</div>
+      <div class="card-num"><span id="tgtDays">--</span><em id="tgtUnit" class="meta-unit">天</em></div>
+      <div class="card-sub" id="tgtSub">未设置目标日</div>
+    </article>
+  </section>
+
+  <footer class="foot">
+    <span>所有时间，皆以秒计</span>
+    <span>设置存于本机浏览器 · 版本 v2.7</span>
+  </footer>
+</main>
+
+<!-- ===== 海报预览 ===== -->
+<div class="overlay" id="posterOverlay" hidden>
+  <div class="modal poster-modal" role="dialog" aria-modal="true" aria-labelledby="posterTitle">
+    <h2 id="posterTitle">时间海报</h2>
+    <div class="poster-preview" id="posterPreview"></div>
+    <div class="modal-actions">
+      <a class="btn" id="posterSave" download>保存图片</a>
+      <button type="button" class="btn btn-primary" id="posterClose">关闭</button>
+    </div>
+    <p class="field-hint">图片按当前页面数据与所选单位实时生成，可保存或长按分享</p>
+  </div>
+</div>
+
+<!-- ===== 设置弹层 ===== -->
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="settings-bar">
+      <h2 id="settingsTitle">设置</h2>
+      <div class="settings-index" id="settingsIndex">
+        <button type="button" class="idx-btn" data-go="moments">今日时刻</button>
+        <button type="button" class="idx-btn" data-go="cards">目标日与生日</button>
+        <button type="button" class="idx-btn" data-go="pomo">番茄钟</button>
+        <button type="button" class="idx-btn" data-go="solar">星体选择</button>
+        <button type="button" class="idx-btn" data-go="unit">时间单位</button>
+        <button type="button" class="idx-btn" data-go="layout">布局</button>
+      </div>
+    </div>
+    <div class="settings-body" id="settingsBody">
+    <div class="field">
+      <label for="bYear">生日（年可留空，仅作"出生至今"统计用）</label>
+      <div class="birth-inputs">
+        <input type="number" id="bYear" placeholder="年" min="1900" max="2100">
+        <input type="number" id="bMonth" placeholder="月" min="1" max="12">
+        <input type="number" id="bDay" placeholder="日" min="1" max="31">
+      </div>
+      <p class="field-hint">留空年份：只显示"距生日"天数；填写年份：额外显示"出生至今"天数</p>
+    </div>
+    <div class="field">
+      <label for="tYear">目标日（另一个可自定义的目标天数）</label>
+      <div class="birth-inputs">
+        <input type="number" id="tYear" placeholder="年" min="1900" max="2100">
+        <input type="number" id="tMonth" placeholder="月" min="1" max="12">
+        <input type="number" id="tDay" placeholder="日" min="1" max="31">
+      </div>
+      <p class="field-hint">填未来日期显示倒计时，填过去日期显示已过天数；年份留空则按每年循环的下一次目标日计算</p>
+    </div>
+    <div class="field">
+      <label>今日时刻（距每个时刻显示剩余时间）</label>
+      <div id="momentRows"></div>
+      <button type="button" class="add-btn" id="addMoment">添加时刻</button>
+      <p class="field-hint">最多 8 个时刻；已过的时刻自动顺延到明日</p>
+    </div>
+    <div class="field">
+      <label>备选计数单位（在设置中一键加入顶栏切换）</label>
+      <div id="unitRows"></div>
+      <p class="field-hint">加入「周 / 月 / 年」会让数字显得更小——加入前会确认两次，请想清楚是否真要这样做</p>
+    </div>
+    <div class="field">
+      <label>自定义计量单位（自定 1 单位 = N 秒，加入顶栏一键切换）</label>
+      <div id="cusRows"></div>
+      <button type="button" class="add-btn" id="addCus">添加自定义单位</button>
+      <p class="field-hint">例：一节课 = 2700 秒、一个番茄钟 = 1500 秒；名称不超过 6 字，最多 8 个</p>
+    </div>
+    <div class="field">
+      <label>番茄钟</label>
+      <div class="pomo-set">
+        <label>专注 <input type="number" id="pWork" min="1" max="480"> 分钟</label>
+        <label>短休 <input type="number" id="pShort" min="1" max="120"> 分钟</label>
+        <label>长休 <input type="number" id="pLong" min="1" max="240"> 分钟</label>
+        <label>每 <input type="number" id="pRounds" min="1" max="12"> 轮长休</label>
+      </div>
+      <label class="check-line"><input type="checkbox" id="pAuto"> 阶段结束自动继续（专注 → 休息 → 专注）</label>
+      <label class="check-line"><input type="checkbox" id="pBeep"> 阶段结束时提示音</label>
+      <p class="field-hint">番茄钟倒计时跟随顶栏单位一键切换（秒 / 百分天 / 自定义单位等）；完成一个专注自动计入今日番茄数</p>
+    </div>
+    <div class="field">
+      <label>星体（太阳系图中显示）</label>
+      <div id="extraRows"></div>
+      <div id="customRows"></div>
+      <button type="button" class="add-btn" id="addCustom">添加自定义星体</button>
+      <p class="field-hint">预设星体一键加入；自定义星体需填写名称、公转周期（天）与轨道半径（AU，1 AU = 日地距离）</p>
+    </div>
+    <div class="field">
+      <label for="axisLenInput">时间轴长度（拖动轴的范围，天）</label>
+      <input type="number" id="axisLenInput" min="1" max="36500" value="365">
+      <p class="field-hint">拖动时间轴时，八大行星按各自真实公转周期旋转</p>
+    </div>
+    <div class="field">
+      <label>模块顺序（页面区块的显示顺序）</label>
+      <div id="orderRows"></div>
+      <p class="field-hint">用上下按钮调整：今日时刻 / 番茄钟 / 太阳系（含时间轴）/ 卡片，保存后立即生效</p>
+    </div>
+    <div class="field">
+      <label>折叠</label>
+      <label class="check-line"><input type="checkbox" id="collapseChk"> 启用模块折叠（顶栏"折叠/展开"按钮，一键隐藏主数字以外的全部模块，连标题一起）</label>
+      <p class="field-hint">关闭后所有模块始终显示，顶栏折叠按钮隐藏</p>
+    </div>
+    <div class="field">
+      <label>速度方向（传播线从太阳中心出发的方向）</label>
+      <div class="dir-row" id="dirRow">
+        <button type="button" class="pbtn" data-dir="r">右</button>
+        <button type="button" class="pbtn" data-dir="l">左</button>
+        <button type="button" class="pbtn" data-dir="u">上</button>
+        <button type="button" class="pbtn" data-dir="d">下</button>
+      </div>
+      <div class="dir-row" style="margin-top:8px">
+        <span class="field-hint" style="white-space:nowrap">或输入角度旋转：</span>
+        <input type="number" id="lightAngle" min="0" max="360" step="1" style="width:86px" title="0°=向右，90°=向下，180°=向左，270°=向上">
+        <span class="field-hint">°（0°=右，90°=下，180°=左，270°=上）</span>
+      </div>
+      <p class="field-hint">拖动时间轴时传播线沿所选方向/角度延伸，可超出太阳系模块</p>
+    </div>
+    <div class="field">
+      <label>速度标量（传播线随拖动生成的移动距离）</label>
+      <div class="dir-row" id="velRow">
+        <button type="button" class="pbtn" data-vel="light">光速</button>
+        <button type="button" class="pbtn" data-vel="sound">大气声速</button>
+        <button type="button" class="pbtn" data-vel="solarwind">太阳风</button>
+        <button type="button" class="pbtn" data-vel="bolt">博尔特</button>
+      </div>
+      <p class="field-hint">线段按真实比例：光速/太阳风一天即越出画布，声速与博尔特一天极短（km 数字显示真实移动距离）。太阳风取近地 ~400 km/s、随距离变速的经验函数</p>
+    </div>
+    <div class="field">
+      <label>自定义速度（启用后进入"更换速度"循环）</label>
+      <div class="vel-c">
+        <div class="vel-crow">
+          <label class="check-line"><input type="checkbox" id="vcCOn"> 常速速度</label>
+          <div class="vel-crow-in">
+            <input type="text" id="vcCName" maxlength="10" placeholder="名称">
+            <input type="number" id="vcCKmS" min="0.000001" step="any" placeholder="速度值" style="flex:1;min-width:90px">
+            <select id="vcCUnit"><option value="s">km / 秒</option><option value="min">km / 分钟</option><option value="h">km / 小时</option><option value="d">km / 天</option></select>
+          </div>
+          <div class="vc-warn" id="vcCWarn" hidden>你已快过时间</div>
+        </div>
+        <div class="vel-crow">
+          <label class="check-line"><input type="checkbox" id="vcFOn"> 变速速度</label>
+          <div class="vel-crow-in">
+            <span id="vcFSummary" class="vc-summary">未设置公式</span>
+            <button type="button" class="pbtn" id="vcFOpen">编辑公式</button>
+          </div>
+          <div class="vc-warn" id="vcFWarn" hidden>你已快过时间</div>
+        </div>
+      </div>
+      <p class="field-hint">常速：固定速度；变速：速度随距太阳距离变化，公式以 x（AU）为自变量、返回该处速度 km/s。单位下拉会列出你自定义的时间单位，数值自动换算；速度超过光速时提示"你已快过时间"</p>
+    </div>
+    <div class="field">
+      <label>番茄钟日志（最近 50 条）</label>
+      <div class="pomo-log" id="pomoLogList"><p class="field-hint">暂无记录</p></div>
+      <button type="button" class="u-btn" id="pomoLogClear">清空日志</button>
+    </div>
+    <div class="field">
+      <label>模块索引</label>
+      <label class="check-line"><input type="checkbox" id="indexChk"> 启用左侧模块索引（跟随页面左侧，点击直达各模块）</label>
+      <p class="field-hint">关闭后左侧索引隐藏；模块折叠时点击索引会自动展开对应模块</p>
+    </div>
+    <div class="field" id="backupField">
+      <label>设置备份</label>
+      <div class="dir-row">
+        <button type="button" class="btn" id="exportBtn">导出设置</button>
+        <button type="button" class="btn" id="importBtn">导入设置</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+      </div>
+      <p class="field-hint">设置自动保存在当前浏览器；导出为 JSON 文件可备份或迁移到其他浏览器/设备，导入后自动恢复</p>
+    </div>
+  </div>
+  <div class="settings-footer">
+    <button type="button" class="btn" id="cancelBtn">取消</button>
+    <button type="button" class="btn btn-primary" id="saveBtn">保存</button>
+  </div>
+</div>
+
+<!-- ===== 变速速度二级页面 ===== -->
+<div class="overlay" id="velFOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="velFTitle">
+    <div class="settings-bar">
+      <h2 id="velFTitle">变速速度</h2>
+    </div>
+    <div class="settings-body">
+      <div class="field">
+        <label>名称</label>
+        <input type="text" id="velFName" maxlength="10" placeholder="如 太阳风">
+      </div>
+      <div class="field">
+        <label>速度公式（x = 距太阳 AU，返回该处速度 km/s）</label>
+        <input type="text" id="velFExpr" placeholder="如 400*Math.pow(x,-0.5)">
+        <p class="field-hint">传播距离按公式数值积分计算；公式无效时回退为 400 km/s 常量</p>
+      </div>
+      <div class="field">
+        <label>单位选择</label>
+        <select id="velFUnit"><option value="s">km / 秒</option><option value="min">km / 分钟</option><option value="h">km / 小时</option><option value="d">km / 天</option></select>
+        <p class="field-hint">包含你自定义的时间单位；输出速度自动换算</p>
+      </div>
+      <div class="field" id="velFPreviewBox">
+        <p class="field-hint" id="velFPreview">日地距离处速度：--</p>
+        <div class="vc-warn" id="velFWarn" hidden>你已快过时间</div>
+      </div>
+    </div>
+    <div class="settings-footer">
+      <button type="button" class="btn" id="velFCancel">取消</button>
+      <button type="button" class="btn btn-primary" id="velFOK">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(s){return document.querySelector(s)};
+var KEY='secday.cfg.v2',KEY1='secday.cfg.v1';
+var DEFAULTS={
+  birthday:{y:'',m:'',d:''},
+  target:{y:'',m:'',d:''},
+  cus:[],
+  moments:[],
+  unit:'s',units:{p:false,q:false,r:false,w:false,m:false,y:false},
+  prop:'comfort',axisLen:365,
+  extras:{pluto:false,ceres:false,belt:false,moon:false},
+  custom:[],
+  pomo:{work:1500,short:300,long:900,rounds:4,auto:false,beep:true},
+  today:{date:'',count:0},
+  order:['cards','moments','pomo','solar','obs'],lightDir:'r',velMode:'light',collapse:true,
+  pomoLog:[],index:true,pomoState:{mode:'idle',running:false,endAt:0,round:0,pausedLeft:0},
+  velCustom:{f:{name:'自定义公式',expr:'400*Math.pow(x,-0.5)',on:false,unit:'s'},c:{name:'自定义常数',kmS:100,on:false,unit:'s'}}
+};
+var UNITS={s:{label:'秒',factor:1},d:{label:'天',factor:86400},p:{label:'百分天',factor:864},q:{label:'万分天',factor:8.64},w:{label:'周',factor:7*86400},m:{label:'月',factor:30.44*86400},y:{label:'年',factor:365.25*86400}};
+var FINE_ORDER=['p','q'];
+var UNIT_ORDER=['w','m','y'];
+var UNIT_DESC={p:'1 百分天 = 一天的一百分之一，更精细',q:'1 万分天 = 一天的万分之一，更精细',w:'1 周 = 7 天，数字变小',m:'1 月 ≈ 30.4 天，数字变小',y:'1 年 ≈ 365.25 天，数字变小'};
+var EXTRA_DESC={pluto:'公转周期 90,560 天',ceres:'周期 1,681 天 · 小行星带最大天体',moon:'绕地球 · 周期 27.3 天',belt:'火星与木星之间 2.1–3.3 AU'};
+var PLANETS=[
+  {id:'mercury',name:'水星',a:0.387,period:87.969,L0:252.25,size:3.4,spin:58.646,desc:'离太阳最近、最小的行星，直径约 4,879 公里。没有大气保温，昼夜温差可超 600℃，公转一圈约 88 天。'},
+  {id:'venus',name:'金星',a:0.723,period:224.701,L0:181.98,size:3.8,spin:243.025,desc:'最亮的行星，黎明黄昏可见，称启明星。浓密二氧化碳大气产生强烈温室效应，表面约 465℃，是太阳系最热的行星，自转方向与其他行星相反。'},
+  {id:'earth',name:'地球',a:1.000,period:365.256,L0:100.46,size:4.0,spin:0.9973,desc:'人类所在的岩石行星，液态水覆盖约七成表面，是迄今唯一已知孕育生命的星球。自转一周约 24 小时，绕日公转约 365.25 天。'},
+  {id:'mars',name:'火星',a:1.524,period:686.980,L0:355.45,size:3.6,spin:1.02596,desc:'红色的行星，表面氧化铁呈铁锈色。拥有太阳系最高的火山奥林帕斯山，极冠与干涸河床的痕迹表明它曾经有过液态水。'},
+  {id:'jupiter',name:'木星',a:5.203,period:4332.589,L0:34.40,size:5.6,spin:0.41354,desc:'太阳系最大的行星，质量约为其他行星总和的 2.5 倍。大红斑是持续数百年的巨型风暴，已确认的卫星超过 90 颗。'},
+  {id:'saturn',name:'土星',a:9.537,period:10759.22,L0:49.94,size:5.2,spin:0.44401,desc:'以壮观的冰与尘埃环闻名，环宽约 27 万公里却极薄。平均密度比水小，已确认的卫星超过 140 颗。'},
+  {id:'uranus',name:'天王星',a:19.191,period:30688.5,L0:313.23,size:4.2,spin:0.71833,desc:'冰巨星，自转轴几乎平躺着公转（倾角约 98°），昼夜与四季都极为漫长。大气中的甲烷吸收红光，使它呈蓝绿色。'},
+  {id:'neptune',name:'海王星',a:30.069,period:60182,L0:304.88,size:4.2,spin:0.67125,desc:'最远的八大行星，深蓝色，风暴强烈，风速可达每小时 2,000 公里以上。公转一圈约 165 年，1989 年旅行者二号曾飞掠。'}
+];
+var EXTRA_PRESETS=[
+  {id:'pluto',name:'冥王星',a:39.48,period:90560,L0:238.93,size:3.0,desc:'矮行星，位于柯伊伯带，由冰与岩石构成。表面有心形平原，2006 年被国际天文学联合会重新归类为矮行星。'},
+  {id:'ceres',name:'谷神星',a:2.767,period:1680.5,L0:80.31,size:3.0,desc:'小行星带中最大的天体，直径约 940 公里，也是其中唯一的矮行星。表面有水冰与盐类物质，可能曾拥有地下海洋。'},
+  {id:'moon',name:'月球',a:null,period:27.3217,L0:218.32,size:2.8,orbit:'earth',desc:'地球唯一的天然卫星，受潮汐锁定，同一面始终朝向地球。表面没有大气，昼夜温差极大，布满撞击坑。'},
+  {id:'belt',name:'小行星带',aMin:2.1,aMax:3.3,kind:'belt'}
+];
+var SUN_DESC='太阳系的中心恒星，占太阳系总质量的 99.86%。核心持续进行核聚变，每秒把约 6 亿吨氢转化为能量，为地球提供光和热。';
+function bodyDesc(nm){
+  if(nm==='太阳'){return SUN_DESC;}
+  var p=PLANETS.filter(function(x){return x.name===nm;})[0];
+  if(p&&p.desc){return p.desc;}
+  var e=EXTRA_PRESETS.filter(function(x){return x.name===nm;})[0];
+  if(e&&e.desc){return e.desc;}
+  var c=cfg.custom.filter(function(x){return x.name===nm;})[0];
+  return c&&c.desc?c.desc:null;
+}
+var J2000ms=Date.UTC(2000,0,1,12,0,0);
+var LIGHT_AU_PER_DAY=299792.458*86400/149597870.7;var C=2*Math.PI*88;
+var dragOffset=0;
+var lastSolar=0;
+var pomo={mode:'idle',running:false,endAt:0,round:0,pausedLeft:0};
+var pomoAudio=null;
+function pomoDur(mode){var p=cfg.pomo;return mode==='work'?p.work:(mode==='long'?p.long:p.short);}
+function pomoLogAdd(stage,how){
+  if(!cfg.pomoLog){cfg.pomoLog=[];}
+  cfg.pomoLog.push({t:Date.now(),stage:stage,how:how});
+  if(cfg.pomoLog.length>50){cfg.pomoLog=cfg.pomoLog.slice(-50);}
+  save();
+}
+var POMO_STAGE_NAMES={work:'专注',short:'短休',long:'长休'};
+function durLabel(secs){
+  secs=Math.round(secs);
+  if(secs<60)return secs+' 秒';
+  if(secs%60===0)return Math.round(secs/60)+' 分钟';
+  var m=secs/60;
+  if(m<10)return (Math.round(m*10)/10)+' 分钟';
+  return Math.round(m)+' 分钟';
+}
+function savePomoState(){
+  cfg.pomoState={mode:pomo.mode,running:pomo.running,endAt:pomo.endAt,round:pomo.round,pausedLeft:pomo.pausedLeft};
+  save();
+}
+function pomoBeep(times){
+  if(!cfg.pomo.beep)return;
+  try{
+    if(!pomoAudio){pomoAudio=new (window.AudioContext||window.webkitAudioContext)();}
+    if(pomoAudio.state==='suspended'){pomoAudio.resume();}
+    var n=times||1;
+    for(var i=0;i<n;i++){
+      var o=pomoAudio.createOscillator(),g=pomoAudio.createGain();
+      o.type='sine';o.frequency.value=(i%2===0)?880:660;
+      g.gain.value=0.12;
+      o.connect(g);g.connect(pomoAudio.destination);
+      var t0=pomoAudio.currentTime+i*0.5;
+      o.start(t0);o.stop(t0+0.35);
+    }
+  }catch(e){}
+}
+function pomoRender(){
+  var p=cfg.pomo,sec;
+  if(pomo.running){sec=Math.max(0,(pomo.endAt-Date.now())/1000);}
+  else if(pomo.mode!=='idle'){sec=pomo.pausedLeft>0?pomo.pausedLeft:pomoDur(pomo.mode);}
+  else{sec=p.work;}
+  $('#pomoNum').textContent=fmtUnit(Math.ceil(sec),cfg.unit);
+  $('#pomoUnit').textContent=unitLabel(cfg.unit);
+  var total=pomo.mode==='idle'?p.work:pomoDur(pomo.mode);
+  var used=Math.max(0,total-sec);
+  var PC=2*Math.PI*88;
+  $('#pomoProg').style.strokeDasharray=PC;
+  $('#pomoProg').style.strokeDashoffset=(PC*(1-used/total)).toFixed(2);
+  var idleFlag=!pomo.running?(pomo.endAt===0?'（已完成）':'（已暂停）'):'';
+  var stage;
+  if(pomo.mode==='idle'){stage='待开始 · 专注 '+durLabel(p.work);}
+  else if(pomo.mode==='work'){var dr=Math.max(0,Math.min(pomo.round,p.rounds-1));stage='专注 '+(dr+1)+' / '+p.rounds+idleFlag;}
+  else{stage=(pomo.mode==='long'?'长休':'短休')+idleFlag;}
+  $('#pomoStage').textContent=stage;
+  $('#pomoDone').textContent='今日 '+cfg.today.count+' 个番茄';
+  $('#pomoSec').classList.toggle('rest',pomo.mode!=='work'&&pomo.mode!=='idle');
+  var btn=$('#pomoStart');
+  if(pomo.mode==='idle'){btn.textContent='开始';}
+  else if(pomo.running){btn.textContent='暂停';}
+  else{btn.textContent='继续';}
+  $('#pomoLegend').textContent='专注 '+durLabel(p.work)+' · 短休 '+durLabel(p.short)+' · 每 '+p.rounds+' 轮长休 '+durLabel(p.long);
+  var rb=$('#pomoRounds');var rh='';
+  for(var ri=0;ri<p.rounds;ri++){
+    var rc='';
+    if(pomo.mode!=='idle'){
+      if(ri<pomo.round){rc='done';}
+      else if(ri===pomo.round){rc='cur';}
+    }
+    rh+='<i class="'+rc+'" title="第 '+(ri+1)+' 轮"></i>';
+  }
+  var rk=pomo.mode+'|'+pomo.round+'|'+p.rounds;
+  if(rb.dataset.k!==rk){rb.dataset.k=rk;rb.innerHTML=rh;}
+}
+function pomoNext(auto){
+  if(pomo.mode!=='idle'){pomoLogAdd(pomo.mode,auto?'auto':'skip');}
+  if(pomo.mode==='work'){
+    pomo.round++;cfg.today.count=Math.min(999,cfg.today.count+1);save();
+    var p=cfg.pomo;
+    pomo.mode=(pomo.round%p.rounds===0)?'long':'short';
+    pomoBeep(2);
+  }else{
+    var wasLong=(pomo.mode==='long');
+    pomo.mode='work';
+    if(wasLong){pomo.round=0;}
+    pomoBeep(1);
+  }
+  pomo.endAt=Date.now()+pomoDur(pomo.mode)*1000;
+  pomo.running=true;
+  pomo.pausedLeft=0;
+  if(typeof document!=='undefined'&&document.hasFocus&&!document.hasFocus()){
+    document.title='番茄钟：阶段结束｜秒与天';
+    setTimeout(function(){document.title='秒与天';},6000);
+  }
+  pomoRender();
+  savePomoState();
+}
+function pomoToggle(){
+  if(pomo.mode==='idle'){
+    pomo.mode='work';pomo.endAt=Date.now()+pomoDur('work')*1000;pomo.running=true;pomo.pausedLeft=0;
+  }else if(pomo.running){
+    pomo.pausedLeft=Math.max(0,(pomo.endAt-Date.now())/1000);pomo.running=false;
+  }else{
+    if(pomo.endAt===0){pomoNext(true);return;}
+    pomo.running=true;pomo.endAt=Date.now()+(pomo.pausedLeft>0?pomo.pausedLeft:pomoDur(pomo.mode))*1000;pomo.pausedLeft=0;
+  }
+  pomoRender();
+  savePomoState();
+}
+function pomoReset(){
+  pomo.mode='idle';pomo.running=false;pomo.endAt=0;pomo.pausedLeft=0;
+  pomoRender();
+  savePomoState();
+}
+/* 跨标签页同步：应用另一窗口写入的番茄钟状态 */
+function pomoApplyState(es){
+  if(!es||!es.mode)return;
+  if(es.mode!=='work'&&es.mode!=='short'&&es.mode!=='long'&&es.mode!=='idle')return;
+  pomo.mode=es.mode;
+  pomo.running=!!es.running;
+  pomo.endAt=+es.endAt||0;
+  pomo.round=Math.max(0,Math.min(999,+es.round||0));
+  pomo.pausedLeft=Math.max(0,+es.pausedLeft||0);
+  pomoRender();
+}
+function renderPomoLog(){
+  var box=$('#pomoLogList');box.innerHTML='';
+  var lg=cfg.pomoLog||[];
+  if(!lg.length){box.innerHTML='<p class="field-hint">暂无记录</p>';return;}
+  lg.slice().reverse().forEach(function(e){
+    var d=new Date(e.t);
+    var r=document.createElement('div');r.className='log-row';
+    r.innerHTML='<span>'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())+' · '+esc(POMO_STAGE_NAMES[e.stage]||e.stage)+'</span>'+
+      '<span class="log-how '+(e.how==='auto'?'auto':'skip')+'">'+(e.how==='auto'?'自然流逝':'跳过')+'</span>';
+    box.appendChild(r);
+  });
+}
+
+function load(){
+  var o=null;
+  try{var raw=localStorage.getItem(KEY);if(raw){o=JSON.parse(raw);}}catch(e){}
+  if(!o){try{var raw1=localStorage.getItem(KEY1);if(raw1){o=JSON.parse(raw1);}}catch(e){}}
+  var oldD=[{label:'午休',h:12,m:0},{label:'下班',h:18,m:0},{label:'入睡',h:23,m:30}];
+  var oldD2=[{label:'上班',h:9,m:0},{label:'午休',h:12,m:0},{label:'下班',h:18,m:0},{label:'睡觉',h:23,m:30}];
+  var moments=(o&&o.moments)||DEFAULTS.moments;
+  if(JSON.stringify(moments)===JSON.stringify(oldD)||JSON.stringify(moments)===JSON.stringify(oldD2)){moments=DEFAULTS.moments;}
+  moments=moments.map(function(m){return {label:String(m.label||''),h:+m.h||0,m:+m.m||0}}).slice(0,8);
+  var unit='s';
+  var units={p:false,q:false,r:false,w:false,m:false,y:false};
+  if(o&&o.units){FINE_ORDER.concat(UNIT_ORDER).forEach(function(u){units[u]=!!o.units[u];});}
+  var prop=(o&&(o.prop==='real'||o.prop==='inner4'||o.prop==='comfort'))?o.prop:'comfort';
+  var axisLen=(o&&+o.axisLen>=1)?Math.min(+o.axisLen,36500):365;
+  var extras={pluto:false,ceres:false,belt:false,moon:false};
+  if(o&&o.extras){Object.keys(extras).forEach(function(k){extras[k]=!!o.extras[k];});}
+  var custom=(o&&Array.isArray(o.custom))?o.custom.map(function(c){
+    return {name:String(c.name||'').slice(0,10),period:+c.period||0,a:+c.a||0};
+  }).filter(function(c){return c.name&&c.period>0&&c.a>0;}).slice(0,12):[];
+  var cus=(o&&Array.isArray(o.cus))?o.cus.map(function(c){
+    return {n:String(c.n||'').slice(0,6),s:+c.s||0,on:!!c.on};
+  }).filter(function(c){return c.n&&c.s>0;}).slice(0,8):[];
+  if(o&&o.unit){if(UNITS[o.unit]){unit=o.unit;}else if(/^c\d+$/.test(o.unit)){var ci=+o.unit.slice(1);if(cus[ci]&&cus[ci].on){unit=o.unit;}}}
+  var pomo={work:1500,short:300,long:900,rounds:4,auto:true,beep:true};
+  if(o&&o.pomo){
+    pomo.work=(+o.pomo.work>=60&&+o.pomo.work<=28800)?+o.pomo.work:1500;
+    pomo.short=(+o.pomo.short>=30&&+o.pomo.short<=7200)?+o.pomo.short:300;
+    pomo.long=(+o.pomo.long>=60&&+o.pomo.long<=14400)?+o.pomo.long:900;
+    pomo.rounds=(+o.pomo.rounds>=1&&+o.pomo.rounds<=12)?Math.round(+o.pomo.rounds):4;
+    pomo.auto=o.pomo.auto===true;
+    pomo.beep=o.pomo.beep!==false;
+  }
+  var d0=new Date();
+  var tstr=d0.getFullYear()+'-'+pad(d0.getMonth()+1)+'-'+pad(d0.getDate());
+  var today=(o&&o.today&&o.today.date===tstr)?{date:tstr,count:Math.max(0,Math.min(999,+o.today.count||0))}:{date:tstr,count:0};
+  var ALLMOD=['cards','moments','pomo','solar','obs'];
+  var order=(o&&Array.isArray(o.order))?o.order.filter(function(k){return ALLMOD.indexOf(k)>-1;}):[];
+  if(!order.length){order=ALLMOD.slice();}
+  if(order.indexOf('obs')<0){order.push('obs');}
+  ['moments','pomo','solar','cards'].forEach(function(k){if(order.indexOf(k)<0){order.push(k);}});
+  var ld0=(o&&o.lightDir)?o.lightDir:'r';
+  var lightDir='r';
+  if(ld0==='l'||ld0==='u'||ld0==='d'){lightDir=ld0;}
+  else{var ldn=+ld0;if(isFinite(ldn)&&String(ld0).trim()!==''){lightDir=String(((ldn%360)+360)%360);}}
+  var velMode=(o&&(o.velMode==='light'||o.velMode==='sound'||o.velMode==='solarwind'||o.velMode==='bolt'||o.velMode==='customf'||o.velMode==='customc'))?o.velMode:'light';
+  var collapse=o?o.collapse!==false:true;
+  var pomoLog=(o&&Array.isArray(o.pomoLog))?o.pomoLog.slice(-50):[];
+  var index=o?o.index!==false:true;
+  var pomoState=(o&&o.pomoState&&typeof o.pomoState==='object')?o.pomoState:null;
+  var velCustom={
+    f:{name:(o&&o.velCustom&&o.velCustom.f)?String(o.velCustom.f.name||'').slice(0,10)||'自定义公式':'自定义公式',
+       expr:(o&&o.velCustom&&o.velCustom.f)?String(o.velCustom.f.expr||'').slice(0,120):'400*Math.pow(x,-0.5)',
+       on:!!(o&&o.velCustom&&o.velCustom.f&&o.velCustom.f.on),
+       unit:(o&&o.velCustom&&o.velCustom.f&&o.velCustom.f.unit)?o.velCustom.f.unit:'s'},
+    c:{name:(o&&o.velCustom&&o.velCustom.c)?String(o.velCustom.c.name||'').slice(0,10)||'自定义常数':'自定义常数',
+       kmS:(o&&o.velCustom&&o.velCustom.c&&+o.velCustom.c.kmS>0)?+o.velCustom.c.kmS:100,
+       on:!!(o&&o.velCustom&&o.velCustom.c&&o.velCustom.c.on),
+       unit:(o&&o.velCustom&&o.velCustom.c&&o.velCustom.c.unit)?o.velCustom.c.unit:'s'}
+  };
+  return {
+    birthday:{y:(o&&o.birthday&&o.birthday.y)||'',m:(o&&o.birthday&&o.birthday.m)||'',d:(o&&o.birthday&&o.birthday.d)||''},
+    target:{y:(o&&o.target&&o.target.y)||'',m:(o&&o.target&&o.target.m)||'',d:(o&&o.target&&o.target.d)||''},
+    moments:moments,unit:unit,units:units,prop:prop,axisLen:axisLen,extras:extras,custom:custom,cus:cus,pomo:pomo,today:today,order:order,lightDir:lightDir,velMode:velMode,collapse:collapse,pomoLog:pomoLog,index:index,pomoState:pomoState,velCustom:velCustom
+  };
+}
+var cfg=load();
+if(cfg.pomoState&&cfg.pomoState.mode){
+  var pm=cfg.pomoState.mode;
+  if(pm==='work'||pm==='short'||pm==='long'){
+    pomo.mode=pm;
+    pomo.round=Math.max(0,Math.min(999,+cfg.pomoState.round||0));
+    if(pomo.round>cfg.pomo.rounds){pomo.round=cfg.pomo.rounds;}
+    /* 保险：页面加载后番茄钟绝不自动运行，只保留进度，需手动"继续" */
+    pomo.running=false;pomo.endAt=0;pomo.pausedLeft=0;
+    savePomoState();
+    pomoRender();
+  }
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(cfg));localStorage.removeItem(KEY1);}catch(e){}}
+function fmt(n){return (n<0?0:Math.floor(n)).toLocaleString('zh-CN')}
+function fitAll(){
+  var els=document.querySelectorAll('.card-num,.hero-num,.axis-offset,.axis-ends>span,.ch-sec');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    el.style.fontSize='';
+    var base=parseFloat(getComputedStyle(el).fontSize);
+    if(!(base>0)||!isFinite(base))continue;
+    el.style.fontSize=base+'px';
+    var w=el.clientWidth;
+    if(!(w>0))w=el.parentElement.clientWidth;
+    var s=el.scrollWidth;
+    if(s>w+2){
+      var min=el.classList.contains('card-num')?12:9;
+      el.style.fontSize=Math.max(min,Math.round(base*(w-2)/s*100)/100)+'px';
+    }
+  }
+}
+function unitLabel(u){
+  if(UNITS[u]){return UNITS[u].label;}
+  if(/^c\d+$/.test(u)){var i=+u.slice(1);if(cfg.cus[i]){return cfg.cus[i].n;}}
+  return u;
+}
+function fmtUnit(secs,u){
+  if(u==='s'){return fmt(secs);}
+  var f=UNITS[u]?UNITS[u].factor:1;
+  if(/^c\d+$/.test(u)){
+    var i=+u.slice(1);
+    if(cfg.cus[i]&&cfg.cus[i].s>0){f=cfg.cus[i].s;}else{return fmt(secs);}
+  }
+  var v=secs/f;
+  var digits=v>=100?0:(v>=10?1:(v>=0.001?3:6));
+  return v.toLocaleString('zh-CN',{maximumFractionDigits:digits});
+}
+function pad(n){return (n<10?'0':'')+n}
+function esc(s){return String(s).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]})}
+function hhmm(h,m){return pad(h)+':'+pad(m)}
+function trimZ(s){return s.replace(/\.?0+$/,'')}
+
+function renderDate(){
+  var d=new Date();
+  $('#dateLine').textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日　星期'+'日一二三四五六'[d.getDay()];
+}
+
+function renderMoments(now,start){
+  var dots=$('#tlDots'),chips=$('#momentChips');
+  dots.innerHTML='';chips.innerHTML='';
+  if(!cfg.moments.length){$('#momentHint').textContent='未设置时刻';return;}
+  $('#momentHint').textContent='距各时刻的'+unitLabel(cfg.unit)+'数';
+  var list=cfg.moments.slice().map(function(m){
+    var target=new Date(start.getFullYear(),start.getMonth(),start.getDate(),m.h,m.m,0,0);
+    var diff=target-now,tomorrow=false;
+    if(diff<0){diff+=86400000;tomorrow=true;}
+    return {m:m,secs:Math.floor(diff/1000),tomorrow:tomorrow};
+  });
+  list.sort(function(a,b){return a.secs-b.secs});
+  list.forEach(function(it){
+    var p=((it.m.h*60+it.m.m)/1440*100).toFixed(2);
+    var d=document.createElement('div');
+    d.className='tl-dot';d.style.left=p+'%';
+    d.innerHTML='<i></i><span class="tl-tag">'+hhmm(it.m.h,it.m.m)+'　'+esc(it.m.label)+'</span>';
+    dots.appendChild(d);
+    var c=document.createElement('div');
+    c.className='chip';
+    c.innerHTML='<span class="ch-time">'+hhmm(it.m.h,it.m.m)+'</span><b>'+esc(it.m.label)+'</b><span class="ch-sec">'+(it.tomorrow?'明日 ':'')+fmtUnit(it.secs,cfg.unit)+' '+unitLabel(cfg.unit)+'</span>';
+    chips.appendChild(c);
+  });
+}
+
+function renderBirthday(now,start,secElapsed){
+  var u=cfg.unit,ul=unitLabel(u);
+  var b=cfg.birthday,m=+b.m,d=+b.d;
+  var ok=m>=1&&m<=12&&d>=1&&d<=31;
+  if(!ok){
+    $('#bdCard').classList.add('unset');
+    $('#bdDays').textContent='--';
+    $('#bdUnit').textContent='';
+    $('#bdSub').textContent='设置生日日期';
+    $('#aliveDays').textContent='--';
+    $('#aliveUnit').textContent='';
+    $('#aliveSub').textContent='设置生日日期';
+    return;
+  }
+  $('#bdCard').classList.remove('unset');
+  var y=start.getFullYear();
+  var bdThis=new Date(y,m-1,d);
+  var bdNext=bdThis<start?new Date(y+1,m-1,d):bdThis;
+  var diffMs=bdNext-now;
+  var bdSecs=Math.floor(diffMs/1000);
+  if(bdThis.getTime()===start.getTime()){
+    $('#bdDays').textContent='今天';
+    $('#bdUnit').textContent='';
+    $('#bdSub').textContent='生日快乐';
+  }else{
+    $('#bdDays').textContent=fmtUnit(bdSecs,u);
+    $('#bdUnit').textContent=ul;
+    $('#bdSub').textContent=(u==='s')?('约 '+fmt(Math.ceil(bdSecs/86400))+' 天'):('约 '+fmt(bdSecs)+' 秒');
+  }
+  var by=+b.y;
+  var byOk=by>=1900&&by<=y;
+  if(byOk){
+    var birthStart=new Date(by,m-1,d,0,0,0,0);
+    if(birthStart<=start){
+      var aliveDays=Math.floor((start-birthStart)/86400000);
+      var aliveSecs=aliveDays*86400+secElapsed;
+      $('#aliveDays').textContent=fmtUnit(aliveSecs,u);
+      $('#aliveUnit').textContent=ul;
+      $('#aliveSub').textContent=(u==='s')?('约 '+fmt(aliveDays)+' 天'):('约 '+fmt(aliveSecs)+' 秒');
+    }else{
+      $('#aliveDays').textContent='--';
+      $('#aliveUnit').textContent='';
+      $('#aliveSub').textContent='生日晚于今天';
+    }
+  }else{
+    $('#aliveDays').textContent='--';
+    $('#aliveUnit').textContent='';
+    $('#aliveSub').textContent='需填写出生年份';
+  }
+}
+
+function renderTarget(now,start){
+  var u=cfg.unit,ul=unitLabel(u);
+  var t=cfg.target,m=+t.m,d=+t.d;
+  var ok=m>=1&&m<=12&&d>=1&&d<=31;
+  if(!ok){
+    $('#tgtCard').classList.add('unset');
+    $('#tgtDays').textContent='--';
+    $('#tgtUnit').textContent='';
+    $('#tgtSub').textContent='设置目标日';
+    return;
+  }
+  $('#tgtCard').classList.remove('unset');
+  var ty=+t.y;
+  if(ty>=1900&&ty<=2100){
+    var abs=new Date(ty,m-1,d,0,0,0,0);
+    var diffMs=abs-now;
+    if(diffMs>=0){
+      $('#tgtDays').textContent=fmtUnit(Math.floor(diffMs/1000),u);
+      $('#tgtUnit').textContent=ul;
+      $('#tgtSub').textContent=(u==='s')?('约 '+fmt(Math.ceil(diffMs/86400000))+' 天'):('约 '+fmt(Math.floor(diffMs/1000))+' 秒');
+    }else{
+      var el=Math.floor(-diffMs/1000);
+      $('#tgtDays').textContent=fmtUnit(el,u);
+      $('#tgtUnit').textContent=ul;
+      $('#tgtSub').textContent='已过'+(u==='s'?('约 '+fmt(Math.floor(-diffMs/86400000))+' 天'):('约 '+fmt(el)+' 秒'));
+    }
+  }else{
+    var tThis=new Date(start.getFullYear(),m-1,d);
+    var tNext=tThis<start?new Date(start.getFullYear()+1,m-1,d):tThis;
+    var diffMs2=tNext-now;
+    if(tThis.getTime()===start.getTime()){
+      $('#tgtDays').textContent='今天';
+      $('#tgtUnit').textContent='';
+      $('#tgtSub').textContent='目标日';
+    }else{
+      $('#tgtDays').textContent=fmtUnit(Math.floor(diffMs2/1000),u);
+      $('#tgtUnit').textContent=ul;
+      $('#tgtSub').textContent=(u==='s')?('约 '+fmt(Math.ceil(diffMs2/86400000))+' 天'):('约 '+fmt(Math.floor(diffMs2/1000))+' 秒');
+    }
+  }
+}
+
+/* ===== 太阳系 ===== */
+function solarRadius(a){
+  var R=230,p=cfg.prop;
+  if(p==='real'){return R*Math.min(a/30.069,1);}
+  if(p==='inner4'){
+    if(a<=1.524){return R*0.72*(a/1.524);}
+    return R*(0.72+0.28*Math.sqrt(Math.min(a,30.069)/30.069));
+  }
+  return R*Math.sqrt(Math.min(a,30.069)/30.069);
+}
+function bodyAngle(body,offsetDays){
+  var jd=(Date.now()+offsetDays*86400000-J2000ms)/86400000;
+  var l0=body.L0||0;
+  return (l0+360*(jd/body.period))%360;
+}
+/* ===== 自转灰度（每自转一圈灰阶变化一次，5 档循环） ===== */
+var ROT_GRAYS=['#171717','#4A4842','#75736C','#A5A39C','#D5D3CC'];
+function spinIdx(body,offsetDays){
+  var sp=body.spin||body.period;
+  var jd=(Date.now()+offsetDays*86400000-J2000ms)/86400000;
+  var rounds=Math.floor(Math.abs(jd/sp));
+  return ((rounds%5)+5)%5;
+}
+/* ===== 速度模式 ===== */
+var AUkm=149597870.7;
+var VEL_MODES={
+  light:{name:'光速',auPerDay:299792.458*86400/AUkm,kmPerDay:299792.458*86400/1000},
+  sound:{name:'大气低空声速',auPerDay:340*86400/AUkm,kmPerDay:340*86400/1000},
+  solarwind:{name:'太阳风',auPerDay:400*86400/AUkm,kmPerDay:400*86400/1000},
+  bolt:{name:'博尔特',auPerDay:10.44*86400/AUkm,kmPerDay:10.44*86400/1000}
+};
+var VEL_KEYS=['light','sound','solarwind','bolt'];
+function rebuildVelModes(){
+  var c=cfg.velCustom||{};
+  var m={light:VEL_MODES.light,sound:VEL_MODES.sound,solarwind:VEL_MODES.solarwind,bolt:VEL_MODES.bolt};
+  if(c.f&&c.f.on){m.customf={name:(c.f.name||'自定义公式').slice(0,10),auPerDay:0,kmPerDay:0,formula:true};}
+  if(c.c&&c.c.on){var kms=+c.c.kmS||0;m.customc={name:(c.c.name||'自定义常数').slice(0,10),auPerDay:kms*86400/AUkm,kmPerDay:kms*86400/1000};}
+  VEL_MODES=m;
+  VEL_KEYS=['light','sound','solarwind','bolt'];
+  if(m.customf){VEL_KEYS.push('customf');}
+  if(m.customc){VEL_KEYS.push('customc');}
+}
+function evalExpr(expr,x){
+  if(!expr||!String(expr).trim())return 400;
+  try{return +Function('x','"use strict";return ('+expr+');')(x);}catch(e){return 400;}
+}
+function customFormulaAU(tDays,expr){
+  // 公式变速：表达式 x=日心距离 AU，返回该处速度 km/s；按变速数值积分求传播距离
+  var cap=1e6,d=0,t=0,dr=0.002;
+  while(t<tDays&&d<cap){
+    var v=evalExpr(expr,Math.max(d,0.05));
+    if(!(v>0))v=1e-6;
+    var dt=dr/(v*86400/AUkm);
+    if(t+dt>=tDays){d+=(tDays-t)/dt*dr;break;}
+    t+=dt;d+=dr;
+  }
+  return d;
+}
+function solarWindAU(tDays){
+  // 经验变速近似：v(r)≈400·r^(-0.5) km/s（r=日心距离 AU，近地约 400 km/s，越远越慢）
+  // 传播距离为速度随距离的积分，解析式 d(t)=(1.5·t·400·86400/AUkm)^(2/3)
+  var c=1.5*400*86400/AUkm;
+  return Math.pow(c*tDays,2/3);
+}
+function velDistAU(mode,days){
+  if(!(days>0))return 0;
+  var vm=VEL_MODES[mode]||VEL_MODES.light;
+  if(mode==='solarwind')return solarWindAU(days);
+  if(mode==='customf')return customFormulaAU(days,cfg.velCustom&&cfg.velCustom.f?cfg.velCustom.f.expr:'');
+  return days*(vm.auPerDay||0);
+}
+function fmtKm(n){
+  if(n>=1e8)return (n/1e8).toFixed(1)+' 亿';
+  if(n>=1e4)return (n/1e4).toFixed(1)+' 万';
+  return String(Math.round(n));
+}
+var VEL_KEYS=['light','sound','solarwind','bolt'];
+function updateVelSwitch(){
+  var b=$('#velSwitch');
+  if(b){b.textContent='更换速度：'+(VEL_MODES[cfg.velMode]||VEL_MODES.light).name;}
+}
+$('#velSwitch').addEventListener('click',function(){
+  var i=VEL_KEYS.indexOf(cfg.velMode);
+  cfg.velMode=VEL_KEYS[(i<0?0:i+1)%VEL_KEYS.length];
+  save();
+  renderAxis();
+  updateVelSwitch();
+});
+function renderSolar(){
+  var R=230,cx=260,cy=260,parts=[],dots=[];
+  if(cfg.extras.belt&&cfg.prop!=='inner4'){
+    var ri=solarRadius(2.1),ro=solarRadius(3.3);
+    parts.push('<circle cx="260" cy="260" r="'+ri.toFixed(1)+'" fill="none" stroke="#ABA8A0" stroke-width="1" stroke-dasharray="2 6" opacity="0.65"/>');
+    parts.push('<circle cx="260" cy="260" r="'+ro.toFixed(1)+'" fill="none" stroke="#ABA8A0" stroke-width="1" stroke-dasharray="2 6" opacity="0.65"/>');
+  }
+  PLANETS.forEach(function(p){
+    if(cfg.prop==='inner4'&&p.a>1.524){return;}
+    var r=solarRadius(p.a);
+    parts.push('<circle cx="260" cy="260" r="'+r.toFixed(1)+'" fill="none" stroke="#D8D5CD" stroke-width="1"/>');
+    var a=bodyAngle(p,dragOffset)*Math.PI/180;
+    dots.push('<circle class="pl-hit" data-name="'+p.name+'" data-sec="'+Math.round(p.period*86400)+'" data-a="'+p.a.toFixed(3)+'" data-orb="" cx="'+(cx+r*Math.cos(a)).toFixed(2)+'" cy="'+(cy-r*Math.sin(a)).toFixed(2)+'" r="9" fill="none"/>');
+    dots.push('<circle class="pl" data-name="'+p.name+'" data-sec="'+Math.round(p.period*86400)+'" data-a="'+p.a.toFixed(3)+'" data-orb="" cx="'+(cx+r*Math.cos(a)).toFixed(2)+'" cy="'+(cy-r*Math.sin(a)).toFixed(2)+'" r="'+p.size+'" fill="'+ROT_GRAYS[spinIdx(p,dragOffset)]+'"/>');
+  });
+  if(dragOffset>0.001){
+    var vm=VEL_MODES[cfg.velMode]||VEL_MODES.light;
+    var lAu=velDistAU(cfg.velMode,dragOffset);
+    var pxA=solarRadius(1);
+    var dl=pxA*lAu;
+    var x2=260,y2=260;
+    var rad=dirAngle(cfg.lightDir)*Math.PI/180;
+    x2=260+dl*Math.cos(rad);
+    y2=260+dl*Math.sin(rad);
+    parts.push('<line x1="260" y1="260" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="#C62F1F" stroke-width="1.2" stroke-dasharray="7 5" opacity="0.9"/>');
+    parts.push('<circle cx="'+x2.toFixed(1)+'" cy="'+y2.toFixed(1)+'" r="2.8" fill="#C62F1F"/>');
+    var cosA=Math.cos(rad),sinA=Math.sin(rad);
+    var tx=x2+6,ty=y2-6;
+    if(Math.abs(cosA)>0.7){tx=x2+(cosA>0?-6:6);}
+    if(Math.abs(sinA)>0.7){ty=y2+(sinA>0?-6:6);}
+    var overC=(cfg.velMode==='customc'&&cfg.velCustom&&cfg.velCustom.c&&cfg.velCustom.c.kmS>299792.458)||(cfg.velMode==='customf'&&cfg.velCustom&&cfg.velCustom.f&&evalExpr(cfg.velCustom.f.expr,1)>299792.458);
+    var lbl=vm.name+' '+fmt(dragOffset)+' 天 ≈ '+fmtKm(lAu*AUkm)+' km'+(overC?' · 你已快过时间':'');
+    parts.push('<text x="'+tx+'" y="'+ty+'" font-size="10" fill="#C62F1F" font-family="monospace,Microsoft YaHei">'+lbl+'</text>');
+  }
+  if(cfg.extras.pluto&&cfg.prop!=='inner4'){
+    var pl=EXTRA_PRESETS[0];
+    var rp=solarRadius(pl.a);
+    parts.push('<circle cx="260" cy="260" r="'+rp.toFixed(1)+'" fill="none" stroke="#D8D5CD" stroke-width="1" stroke-dasharray="2 4" opacity="0.7"/>');
+    var ap=bodyAngle(pl,dragOffset)*Math.PI/180;
+    dots.push('<circle class="pl-hit" data-name="冥王星" data-sec="'+Math.round(pl.period*86400)+'" data-a="'+pl.a.toFixed(3)+'" data-orb="" cx="'+(cx+rp*Math.cos(ap)).toFixed(2)+'" cy="'+(cy-rp*Math.sin(ap)).toFixed(2)+'" r="9" fill="none"/>');
+    dots.push('<circle class="pl" data-name="冥王星" data-sec="'+Math.round(pl.period*86400)+'" data-a="'+pl.a.toFixed(3)+'" data-orb="" cx="'+(cx+rp*Math.cos(ap)).toFixed(2)+'" cy="'+(cy-rp*Math.sin(ap)).toFixed(2)+'" r="'+pl.size+'" fill="#8B8881"/>');
+  }
+  if(cfg.extras.ceres&&cfg.prop!=='inner4'){
+    var ce=EXTRA_PRESETS[1];
+    var rc=solarRadius(ce.a);
+    parts.push('<circle cx="260" cy="260" r="'+rc.toFixed(1)+'" fill="none" stroke="#D8D5CD" stroke-width="1" stroke-dasharray="2 4" opacity="0.7"/>');
+    var ac=bodyAngle(ce,dragOffset)*Math.PI/180;
+    dots.push('<circle class="pl-hit" data-name="谷神星" data-sec="'+Math.round(ce.period*86400)+'" data-a="'+ce.a.toFixed(3)+'" data-orb="" cx="'+(cx+rc*Math.cos(ac)).toFixed(2)+'" cy="'+(cy-rc*Math.sin(ac)).toFixed(2)+'" r="9" fill="none"/>');
+    dots.push('<circle class="pl" data-name="谷神星" data-sec="'+Math.round(ce.period*86400)+'" data-a="'+ce.a.toFixed(3)+'" data-orb="" cx="'+(cx+rc*Math.cos(ac)).toFixed(2)+'" cy="'+(cy-rc*Math.sin(ac)).toFixed(2)+'" r="'+ce.size+'" fill="#8B8881"/>');
+  }
+  cfg.custom.forEach(function(c){
+    if(cfg.prop==='inner4'&&c.a>1.524){return;}
+    var r=solarRadius(c.a);
+    parts.push('<circle cx="260" cy="260" r="'+r.toFixed(1)+'" fill="none" stroke="#D8D5CD" stroke-width="1" stroke-dasharray="2 4" opacity="0.7"/>');
+    var a=bodyAngle(c,dragOffset)*Math.PI/180;
+    dots.push('<circle class="pl-hit" data-name="'+esc(c.name)+'" data-sec="'+Math.round(c.period*86400)+'" data-a="'+c.a.toFixed(3)+'" data-orb="" cx="'+(cx+r*Math.cos(a)).toFixed(2)+'" cy="'+(cy-r*Math.sin(a)).toFixed(2)+'" r="9" fill="none"/>');
+    dots.push('<circle class="pl" data-name="'+esc(c.name)+'" data-sec="'+Math.round(c.period*86400)+'" data-a="'+c.a.toFixed(3)+'" data-orb="" cx="'+(cx+r*Math.cos(a)).toFixed(2)+'" cy="'+(cy-r*Math.sin(a)).toFixed(2)+'" r="2.9" fill="#8B8881"/>');
+  });
+  if(cfg.extras.moon){
+    var earth=PLANETS[2];
+    var er=solarRadius(earth.a);
+    var ea=bodyAngle(earth,dragOffset)*Math.PI/180;
+    var ex=cx+er*Math.cos(ea),ey=cy-er*Math.sin(ea);
+    var mr=12;
+    parts.push('<circle cx="'+ex.toFixed(2)+'" cy="'+ey.toFixed(2)+'" r="'+mr+'" fill="none" stroke="#ABA8A0" stroke-width="1" stroke-dasharray="1 3"/>');
+    var ma=bodyAngle(EXTRA_PRESETS[2],dragOffset)*Math.PI/180;
+    dots.push('<circle class="pl-hit" data-name="月球" data-sec="'+Math.round(27.3217*86400)+'" data-a="0" data-orb="earth" cx="'+(ex+mr*Math.cos(ma)).toFixed(2)+'" cy="'+(ey-mr*Math.sin(ma)).toFixed(2)+'" r="9" fill="none"/>');
+    dots.push('<circle class="pl" data-name="月球" data-sec="'+Math.round(27.3217*86400)+'" data-a="0" data-orb="earth" cx="'+(ex+mr*Math.cos(ma)).toFixed(2)+'" cy="'+(ey-mr*Math.sin(ma)).toFixed(2)+'" r="2.8" fill="#8B8881"/>');
+  }
+  parts.push('<circle class="pl-hit" data-name="太阳" data-sec="0" data-a="0" data-orb="" cx="260" cy="260" r="12" fill="none"/>');
+  parts.push('<circle class="pl" data-name="太阳" data-sec="0" data-a="0" data-orb="" cx="260" cy="260" r="7" fill="#C62F1F"/>');
+  parts.push('<text x="260" y="276" text-anchor="middle" font-family="monospace" font-size="9" fill="#8B8881">日</text>');
+  $('#solarChart').innerHTML=parts.join('')+dots.join('');
+  var ul=unitLabel(cfg.unit);
+  var legend=[];
+  PLANETS.forEach(function(p){
+    if(cfg.prop==='inner4'&&p.a>1.524){return;}
+    legend.push(p.name+' '+fmtUnit(Math.round(p.period*86400),cfg.unit)+ul);
+  });
+  if(cfg.extras.pluto&&cfg.prop!=='inner4'){legend.push('冥王星 '+fmtUnit(90560*86400,cfg.unit)+ul);}
+  if(cfg.extras.ceres&&cfg.prop!=='inner4'){legend.push('谷神星 '+fmtUnit(1681*86400,cfg.unit)+ul);}
+  if(cfg.extras.moon){legend.push('月球 '+fmtUnit(Math.round(27.3217*86400),cfg.unit)+ul);}
+  if(cfg.extras.belt&&cfg.prop!=='inner4'){legend.push('小行星带');}
+  cfg.custom.forEach(function(c){legend.push(esc(c.name)+' '+fmtUnit(Math.round(c.period*86400),cfg.unit)+ul);});
+  $('#solarLegend').textContent=legend.join('、');
+  $('#solarTip').hidden=true;
+  if(solarPinned){solarPinned=false;}
+  if(!solarBound){solarBound=true;bindSolarChart();}
+}
+var solarBound=false,solarPinned=false;
+function bindSolarChart(){
+  var chart=$('#solarChart'),tip=$('#solarTip');
+  function showTip(c,x,y){
+    var nm=c.getAttribute('data-name');
+    var sec=+c.getAttribute('data-sec');
+    var a=+c.getAttribute('data-a');
+    var orb=c.getAttribute('data-orb');
+    var dsc=bodyDesc(nm);
+    var h='<b>'+esc(nm)+'</b>';
+    if(nm==='太阳'){
+      h+='<br><span class="tip-sub">中心恒星</span>';
+    }else{
+      if(sec>0){h+='<br><span class="tip-sub">公转 '+fmtUnit(sec,cfg.unit)+' '+unitLabel(cfg.unit)+'</span>';}
+      if(orb==='earth'){h+='<br><span class="tip-sub">绕地球公转</span>';}
+      else if(a>0){h+='<br><span class="tip-sub">轨道半径 '+a.toFixed(2)+' AU</span>';}
+    }
+    if(dsc){h+='<span class="tip-desc">'+esc(dsc)+'</span>';}
+    tip.innerHTML=h;tip.hidden=false;
+    var pad=14,left=x+pad,top=y+pad;
+    var r=tip.getBoundingClientRect();
+    if(left+r.width>window.innerWidth-8){left=x-r.width-pad;}
+    if(top+r.height>window.innerHeight-8){top=y-r.height-pad;}
+    tip.style.left=left+'px';tip.style.top=top+'px';
+  }
+  chart.addEventListener('mousemove',function(e){
+    var c=e.target;
+    if(solarPinned){return;}
+    if(c&&(c.tagName==='circle'||c.tagName==='CIRCLE')&&c.getAttribute('data-name')){showTip(c,e.clientX,e.clientY);}
+    else{tip.hidden=true;}
+  });
+  chart.addEventListener('mouseleave',function(){if(!solarPinned){tip.hidden=true;}});
+  chart.addEventListener('click',function(e){
+    var c=e.target;
+    if(c&&(c.tagName==='circle'||c.tagName==='CIRCLE')&&c.getAttribute('data-name')){solarPinned=true;showTip(c,e.clientX,e.clientY);}
+    else{solarPinned=false;tip.hidden=true;}
+  });
+}
+function renderPropRow(){
+  $('#propRow').querySelectorAll('.pbtn').forEach(function(b){b.classList.toggle('on',b.dataset.p===cfg.prop);});
+}
+$('#propRow').addEventListener('click',function(e){
+  var b=e.target.closest('button');
+  if(!b)return;
+  cfg.prop=b.dataset.p;save();
+  renderPropRow();renderSolar();
+});
+
+/* ===== 可拖动时间轴 ===== */
+function renderAxis(){
+  var L=cfg.axisLen;
+  var frac=Math.max(0,Math.min(1,dragOffset/L));
+  $('#axisFill').style.width=(frac*100).toFixed(3)+'%';
+  $('#axisHandle').style.left=(frac*100).toFixed(3)+'%';
+  $('#axisEnd').textContent='+'+fmtUnit(L*86400,cfg.unit)+' '+unitLabel(cfg.unit);
+  var rail=$('#axisRail');
+  rail.setAttribute('aria-valuemax',L);
+  rail.setAttribute('aria-valuenow',dragOffset.toFixed(1));
+  var off=$('#axisOffset');
+  if(dragOffset<0.001){
+    off.innerHTML='<b>现在</b>';
+  }else{
+    var d=new Date(Date.now()+dragOffset*86400000);
+    off.innerHTML='+'+fmtUnit(dragOffset*86400,cfg.unit)+' '+unitLabel(cfg.unit)+'（'+(d.getMonth()+1)+'月'+d.getDate()+'日）';
+  }
+  $('#axisBack').style.visibility=(dragOffset>0.001)?'visible':'hidden';
+  var rot=PLANETS.map(function(p){return p.name+' '+trimZ((L/p.period).toFixed(3))+'圈';});
+  $('#axisRot').textContent='轴长 '+fmt(L)+' 天内每颗行星的旋转圈数：'+rot.join('、');
+}
+function renderAxisPresets(){
+  var box=$('#axisPresets');box.innerHTML='';
+  [7,30,365,3650].forEach(function(d){
+    var b=document.createElement('button');
+    b.type='button';b.className='preset-btn'+(cfg.axisLen===d?' on':'');b.textContent=d+'天';b.dataset.days=d;
+    box.appendChild(b);
+  });
+}
+$('#axisPresets').addEventListener('click',function(e){
+  var b=e.target.closest('button');
+  if(!b)return;
+  cfg.axisLen=+b.dataset.days;save();
+  renderAxisPresets();renderAxis();renderSolar();
+});
+var axisRail=$('#axisRail'),dragging=false;
+function setOffsetFromX(clientX){
+  var rect=axisRail.getBoundingClientRect();
+  var frac=(clientX-rect.left)/rect.width;
+  frac=Math.max(0,Math.min(1,frac));
+  dragOffset=frac*cfg.axisLen;
+  renderAxis();renderSolar();
+}
+axisRail.addEventListener('pointerdown',function(e){
+  dragging=true;
+  try{axisRail.setPointerCapture(e.pointerId);}catch(err){}
+  setOffsetFromX(e.clientX);
+});
+axisRail.addEventListener('pointermove',function(e){if(dragging){setOffsetFromX(e.clientX);}});
+axisRail.addEventListener('pointerup',function(){dragging=false;});
+axisRail.addEventListener('pointercancel',function(){dragging=false;});
+axisRail.addEventListener('keydown',function(e){
+  var step=cfg.axisLen/100;
+  if(e.key==='ArrowLeft'||e.key==='ArrowDown'){e.preventDefault();dragOffset=Math.max(0,dragOffset-step);renderAxis();renderSolar();}
+  if(e.key==='ArrowRight'||e.key==='ArrowUp'){e.preventDefault();dragOffset=Math.min(cfg.axisLen,dragOffset+step);renderAxis();renderSolar();}
+});
+$('#axisBack').addEventListener('click',function(){dragOffset=0;renderAxis();renderSolar();});
+
+/* ===== 每秒主循环 ===== */
+function tick(){
+  var now=new Date();
+  var start=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0,0);
+  var elapsedMs=now-start;
+  var secElapsed=Math.floor(elapsedMs/1000);
+  var pct=elapsedMs/86400000*100;
+  var u=cfg.unit,ul=unitLabel(u);
+  $('#clock').textContent=hhmm(now.getHours(),now.getMinutes())+':'+pad(now.getSeconds());
+  $('#dayElapsed').textContent=fmtUnit(secElapsed,u);
+  $('#heroUnit').textContent=ul;
+  $('#heroLabel').textContent='今日已过（'+ul+'）';
+  $('#ringProgress').style.strokeDasharray=C;
+  $('#ringProgress').style.strokeDashoffset=(C*(1-pct/100)).toFixed(2);
+  $('#ringPct').textContent=pct.toFixed(1)+'%';
+  $('#dayBar').style.width=pct.toFixed(3)+'%';
+  var dayLeft=86400-secElapsed;
+  $('#cardDayLeftNum').textContent=fmtUnit(dayLeft,u);
+  $('#cardDayLeftUnit').textContent=ul;
+  var secInHour=now.getMinutes()*60+now.getSeconds();
+  $('#hourLeftNum').textContent=fmtUnit(3600-secInHour,u);
+  $('#hourUnit').textContent=ul;
+  $('#hourSub').textContent=hhmm((now.getHours()+1)%24,0)+' 整点';
+  $('#cards').classList.toggle('unit-s',u==='s');
+  renderMoments(now,start);
+  renderBirthday(now,start,secElapsed);
+  renderTarget(now,start);
+  renderAxis();
+  var np=Math.max(4,Math.min(96,pct)).toFixed(2);
+  var nw=$('#tlNow');
+  nw.style.left=np+'%';
+  nw.querySelector('.tl-tag').textContent=hhmm(now.getHours(),now.getMinutes());
+  var ts0=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
+  if(cfg.today.date!==ts0){cfg.today={date:ts0,count:0};}
+  /* 保险：轮次/计数异常自动复位（防旧标签页或异常写入污染） */
+  if(pomo.mode!=='idle'&&pomo.round>cfg.pomo.rounds*4){pomoReset();}
+  if(pomo.round<0){pomo.round=0;}
+  if(pomo.running&&pomo.endAt>0&&pomo.endAt>Date.now()+30*86400000){pomoReset();}
+  if(pomo.running&&Date.now()>=pomo.endAt&&!document.hidden){
+    var trySwitch=function(){
+      var ext=null;
+      try{var extRaw=localStorage.getItem(KEY);if(extRaw){ext=JSON.parse(extRaw);}}catch(e){}
+      var es=ext&&ext.pomoState;
+      if(es&&es.endAt===pomo.endAt&&es.mode===pomo.mode&&es.round===pomo.round){
+        if(cfg.pomo.auto){pomoNext(true);}
+        else{pomo.running=false;pomo.endAt=0;pomo.pausedLeft=0;savePomoState();pomoRender();}
+      }else if(es){
+        pomoApplyState(es);
+      }
+    };
+    if(navigator.locks){
+      navigator.locks.request('secday-pomo',{ifAvailable:true},function(lock){
+        if(lock){trySwitch();}
+      });
+    }else{
+      trySwitch();
+    }
+  }
+  pomoRender();
+  fitAll();
+}
+
+/* ===== 设置弹层 ===== */
+var overlay=$('#overlay'),rowBox=$('#momentRows');
+var tmpUnits={w:false,m:false,y:false};
+var confirmingU=null,confirmPhase=0;
+var tmpExtras={pluto:false,ceres:false,belt:false,moon:false};
+var tmpCustom=[];
+var tmpCus=[];
+
+function openSettings(){
+  tmpUnits={};FINE_ORDER.concat(UNIT_ORDER).forEach(function(u){tmpUnits[u]=cfg.units[u];});
+  confirmingU=null;confirmPhase=0;
+  tmpExtras={pluto:cfg.extras.pluto,ceres:cfg.extras.ceres,belt:cfg.extras.belt,moon:cfg.extras.moon};
+  tmpCustom=cfg.custom.map(function(c){return {name:c.name,period:c.period,a:c.a};});
+  tmpCus=cfg.cus.map(function(c){return {n:c.n,s:c.s,on:c.on};});
+  fill();renderUnitRows();renderExtraRows();renderCustomRows();renderCusRows();renderOrderRows();
+  tmpOrder=cfg.order.slice();tmpLightDir=cfg.lightDir;tmpVelMode=cfg.velMode||'light';
+  tmpVC=JSON.parse(JSON.stringify(cfg.velCustom||{f:{name:'自定义公式',expr:'400*Math.pow(x,-0.5)',on:false,unit:'s'},c:{name:'自定义常数',kmS:100,on:false,unit:'s'}}));
+  $('#vcFOn').checked=tmpVC.f.on;
+  $('#vcCOn').checked=tmpVC.c.on;
+  $('#vcCName').value=tmpVC.c.name;
+  $('#vcCUnit').value=tmpVC.c.unit;
+  $('#vcCKmS').value=Math.round(tmpVC.c.kmS*velUnitSecs(tmpVC.c.unit)*100)/100;
+  fillVelUnits();
+  renderVCState();
+  renderDirRow();renderVelRow();
+  $('#axisLenInput').value=cfg.axisLen;
+  $('#collapseChk').checked=cfg.collapse;
+  $('#indexChk').checked=cfg.index;
+  renderPomoLog();
+  $('#tYear').value=cfg.target.y;
+  $('#tMonth').value=cfg.target.m;
+  $('#tDay').value=cfg.target.d;
+  $('#pWork').value=Math.round(cfg.pomo.work/60);
+  $('#pShort').value=Math.round(cfg.pomo.short/60);
+  $('#pLong').value=Math.round(cfg.pomo.long/60);
+  $('#pRounds').value=cfg.pomo.rounds;
+  $('#pAuto').checked=cfg.pomo.auto;
+  $('#pBeep').checked=cfg.pomo.beep;
+  overlay.hidden=false;
+}
+function closeSettings(){overlay.hidden=true;}
+function fill(){
+  $('#bYear').value=cfg.birthday.y;
+  $('#bMonth').value=cfg.birthday.m;
+  $('#bDay').value=cfg.birthday.d;
+  rowBox.innerHTML='';
+  if(!cfg.moments.length){addRow(null);}
+  cfg.moments.forEach(function(m){addRow(m);});
+}
+function addRow(m){
+  m=m||{label:'',h:12,m:0};
+  var r=document.createElement('div');
+  r.className='mrow';
+  r.innerHTML='<input type="text" class="mLabel" placeholder="名称" maxlength="8" value="'+esc(m.label)+'">'+
+    '<input type="time" class="mTime" value="'+hhmm(m.h,m.m)+'">'+
+    '<button type="button" class="del-btn" aria-label="删除该时刻">×</button>';
+  r.querySelector('.del-btn').addEventListener('click',function(){r.remove();});
+  rowBox.appendChild(r);
+}
+function renderUnitRows(){
+  var box=$('#unitRows');box.innerHTML='';
+  FINE_ORDER.concat(UNIT_ORDER).forEach(function(u){
+    var r=document.createElement('div');r.className='urow';
+    if(confirmingU===u){
+      var msg=(confirmPhase===1)
+        ?'加入「'+UNITS[u].label+'」？时间将以更小的数字流逝'
+        :'真的加入「'+UNITS[u].label+'」？这会淡化你对时间流逝的感受';
+      r.innerHTML='<span class="u-name">'+UNITS[u].label+'</span>'+
+        '<span class="u-confirm">'+msg+'</span>'+
+        '<button type="button" class="u-btn" data-ua="yes">确定</button>'+
+        '<button type="button" class="u-btn dim" data-ua="no">取消</button>';
+      r.querySelector('[data-ua="yes"]').addEventListener('click',function(){
+        if(confirmPhase===1){confirmPhase=2;renderUnitRows();}
+        else{tmpUnits[u]=true;confirmingU=null;confirmPhase=0;renderUnitRows();}
+      });
+      r.querySelector('[data-ua="no"]').addEventListener('click',function(){confirmingU=null;confirmPhase=0;renderUnitRows();});
+    }else{
+      r.innerHTML='<span class="u-name">'+UNITS[u].label+'</span><span class="u-desc">'+UNIT_DESC[u]+'</span>';
+      if(tmpUnits[u]){
+        var b=document.createElement('button');
+        b.type='button';b.className='u-btn on';b.textContent='已加入 / 移除';
+        b.addEventListener('click',function(){tmpUnits[u]=false;renderUnitRows();});
+        r.appendChild(b);
+      }else{
+        var b2=document.createElement('button');
+        b2.type='button';b2.className='u-btn dim';
+        if(FINE_ORDER.indexOf(u)>=0){
+          b2.textContent='加入';
+          b2.addEventListener('click',function(){tmpUnits[u]=true;renderUnitRows();});
+        }else{
+          b2.textContent='加入';
+          b2.addEventListener('click',function(){confirmingU=u;confirmPhase=1;renderUnitRows();});
+        }
+        r.appendChild(b2);
+      }
+    }
+    box.appendChild(r);
+  });
+}
+var tmpOrder=[],tmpLightDir='r',tmpVelMode='light';
+var tmpVC={f:{name:'',expr:'',on:false,unit:'s'},c:{name:'',kmS:100,on:false,unit:'s'}};
+var MODULE_NAMES={moments:'今日时刻',pomo:'番茄钟',solar:'太阳系',obs:'天文台',cards:'卡片'};
+/* 国内可访问的代表性天文台官网；网址如有变更，在此数组统一更新（2026-10 已核对） */
+var OBSERVATORIES=[
+  {name:'国家天文台',loc:'北京',desc:'NAOC · 综合天文研究机构',url:'https://www.bao.ac.cn'},
+  {name:'紫金山天文台',loc:'南京',desc:'PMO · 中国现代天文学摇篮',url:'https://www.pmo.ac.cn'},
+  {name:'上海天文台',loc:'上海',desc:'SHAO · 射电 / 甚长基线 / 时间基准',url:'https://www.shao.ac.cn'},
+  {name:'云南天文台',loc:'昆明',desc:'YNAO · 光学与太阳观测台站',url:'https://www.ynao.ac.cn'},
+  {name:'北京天文馆',loc:'北京',desc:'BJP · 科普展馆与天象厅',url:'https://www.bjp.org.cn'}
+];
+function renderObs(){
+  var box=$('#obsList');box.innerHTML='';
+  OBSERVATORIES.forEach(function(o){
+    var r=document.createElement('a');r.className='obs-item';r.href=o.url;r.target='_blank';r.rel='noopener';
+    r.innerHTML='<span class="ob-name">'+o.name+'</span><span class="ob-meta">'+o.loc+' · '+o.desc+'</span><span class="ob-go">官网</span>';
+    box.appendChild(r);
+  });
+}
+function renderOrderRows(){
+  var box=$('#orderRows');box.innerHTML='';
+  tmpOrder.forEach(function(k,i){
+    var r=document.createElement('div');r.className='mrow orow';
+    r.innerHTML='<span class="o-name">'+MODULE_NAMES[k]+'</span>'+
+      '<button type="button" class="u-btn'+(i===0?' dim':'')+'" data-mv="-1"'+(i===0?' disabled':'')+'>上移</button>'+
+      '<button type="button" class="u-btn'+(i===tmpOrder.length-1?' dim':'')+'" data-mv="1"'+(i===tmpOrder.length-1?' disabled':'')+'>下移</button>';
+    r.querySelector('[data-mv="-1"]').addEventListener('click',function(){
+      if(i===0)return;var t=tmpOrder[i-1];tmpOrder[i-1]=tmpOrder[i];tmpOrder[i]=t;renderOrderRows();
+    });
+    r.querySelector('[data-mv="1"]').addEventListener('click',function(){
+      if(i===tmpOrder.length-1)return;var t=tmpOrder[i+1];tmpOrder[i+1]=tmpOrder[i];tmpOrder[i]=t;renderOrderRows();
+    });
+    box.appendChild(r);
+  });
+}
+function dirAngle(d){
+  if(d==='l')return 180;
+  if(d==='r')return 0;
+  if(d==='u')return 270;
+  if(d==='d')return 90;
+  var n=+d;
+  return isFinite(n)?((n%360)+360)%360:0;
+}
+function renderDirRow(){
+  $('#dirRow').querySelectorAll('.pbtn').forEach(function(b){b.classList.toggle('on',b.dataset.dir===tmpLightDir);});
+  var ia=$('#lightAngle');
+  if(ia&&document.activeElement!==ia){ia.value=Math.round(dirAngle(tmpLightDir));}
+}
+$('#dirRow').addEventListener('click',function(e){
+  var b=e.target.closest('button');
+  if(!b)return;
+  tmpLightDir=b.dataset.dir;renderDirRow();
+});
+$('#lightAngle').addEventListener('input',function(){
+  var n=+this.value;
+  if(isFinite(n)){
+    tmpLightDir=String(((n%360)+360)%360);
+    $('#dirRow').querySelectorAll('.pbtn').forEach(function(b){b.classList.toggle('on',b.dataset.dir===tmpLightDir);});
+  }
+});
+function velUnitSecs(u){
+  if(u==='min')return 60;
+  if(u==='h')return 3600;
+  if(u==='d')return 86400;
+  if(/^c\d+$/.test(u)){var i=+u.slice(1);return (cfg.cus[i]&&cfg.cus[i].s>0)?cfg.cus[i].s:86400;}
+  return 1;
+}
+function velUnitLabel(u){
+  if(u==='min')return 'km / 分钟';
+  if(u==='h')return 'km / 小时';
+  if(u==='d')return 'km / 天';
+  if(/^c\d+$/.test(u)){var i=+u.slice(1);return 'km / '+(cfg.cus[i]?cfg.cus[i].n:'自定义');}
+  return 'km / 秒';
+}
+function fillVelUnits(){
+  ['vcCUnit','velFUnit'].forEach(function(id){
+    var sel=$('#'+id);if(!sel)return;
+    var cur=sel.value;
+    var html=[['s','km / 秒'],['min','km / 分钟'],['h','km / 小时'],['d','km / 天']].map(function(o){
+      return '<option value="'+o[0]+'">'+o[1]+'</option>';
+    }).join('');
+    cfg.cus.forEach(function(c,i){
+      if(c.on){html+='<option value="c'+i+'">km / '+esc(c.n)+'</option>';}
+    });
+    sel.innerHTML=html;
+    if(cur&&[].slice.call(sel.options).some(function(o){return o.value===cur;})){sel.value=cur;}
+  });
+}
+function fmtDisp(n){
+  if(n>=1e8)return (n/1e8).toFixed(2)+' 亿';
+  if(n>=1e4)return (n/1e4).toFixed(2)+' 万';
+  return String(Math.round(n*100)/100);
+}
+function renderVCState(){
+  var f=tmpVC.f,c=tmpVC.c;
+  $('#vcFSummary').textContent=(f.name&&f.expr)?(f.name+' · '+String(f.expr||'').slice(0,20)):'未设置公式';
+  $('#vcCWarn').hidden=!((c.kmS||0)>299792.458);
+  $('#vcFWarn').hidden=!(evalExpr(f.expr,1)>299792.458);
+}
+function renderVelFPreview(){
+  var v=evalExpr(tmpVC.f.expr,1);
+  var disp=v*velUnitSecs(tmpVC.f.unit);
+  $('#velFPreview').textContent='日地距离处速度：'+fmtDisp(disp)+' '+velUnitLabel(tmpVC.f.unit);
+  $('#velFWarn').hidden=!(v>299792.458);
+}
+function renderVelRow(){
+  var box=$('#velRow');box.innerHTML='';
+  var keys=['light','sound','solarwind','bolt'];
+  if(tmpVC&&tmpVC.f&&tmpVC.f.on){keys.push('customf');}
+  if(tmpVC&&tmpVC.c&&tmpVC.c.on){keys.push('customc');}
+  keys.forEach(function(k){
+    var b=document.createElement('button');
+    b.type='button';b.className='pbtn'+(k===tmpVelMode?' on':'');b.dataset.vel=k;
+    var nm=(VEL_MODES[k]&&VEL_MODES[k].name)||k;
+    if(k==='customf'&&tmpVC&&tmpVC.f&&tmpVC.f.name){nm=tmpVC.f.name;}
+    if(k==='customc'&&tmpVC&&tmpVC.c&&tmpVC.c.name){nm=tmpVC.c.name;}
+    b.textContent=nm;
+    box.appendChild(b);
+  });
+}
+$('#velRow').addEventListener('click',function(e){
+  var b=e.target.closest('button');
+  if(!b)return;
+  tmpVelMode=b.dataset.vel;renderVelRow();
+});
+/* ===== 自定义速度设置 ===== */
+$('#vcCOn').addEventListener('change',function(){tmpVC.c.on=this.checked;renderVelRow();});
+$('#vcCName').addEventListener('input',function(){tmpVC.c.name=this.value;});
+$('#vcCKmS').addEventListener('input',function(){tmpVC.c.kmS=(+this.value||0)/velUnitSecs(tmpVC.c.unit);renderVCState();});
+$('#vcCUnit').addEventListener('change',function(){tmpVC.c.unit=this.value;$('#vcCKmS').value=Math.round(tmpVC.c.kmS*velUnitSecs(this.value)*100)/100;renderVCState();});
+$('#vcFOn').addEventListener('change',function(){tmpVC.f.on=this.checked;renderVCState();renderVelRow();});
+$('#vcFOpen').addEventListener('click',function(){
+  $('#velFName').value=tmpVC.f.name;
+  $('#velFExpr').value=tmpVC.f.expr;
+  $('#velFUnit').value=tmpVC.f.unit;
+  renderVelFPreview();
+  $('#velFOverlay').hidden=false;
+});
+$('#velFCancel').addEventListener('click',function(){$('#velFOverlay').hidden=true;});
+$('#velFOverlay').addEventListener('click',function(e){if(e.target===this){this.hidden=true;}});
+$('#velFName').addEventListener('input',function(){tmpVC.f.name=this.value;$('#vcFSummary').textContent=(tmpVC.f.name||'未设置公式')+' · '+String(tmpVC.f.expr||'').slice(0,20);});
+$('#velFExpr').addEventListener('input',function(){tmpVC.f.expr=this.value;renderVelFPreview();});
+$('#velFUnit').addEventListener('change',function(){tmpVC.f.unit=this.value;renderVelFPreview();});
+$('#velFOK').addEventListener('click',function(){$('#velFOverlay').hidden=true;renderVCState();renderVelRow();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#velFOverlay').hidden){$('#velFOverlay').hidden=true;}});
+function renderCusRows(){
+  var box=$('#cusRows');box.innerHTML='';
+  if(!tmpCus.length){
+    box.innerHTML='<p class="field-hint">尚未添加自定义单位：名称 + 1 单位等于多少秒</p>';
+    return;
+  }
+  tmpCus.forEach(function(c,i){
+    var r=document.createElement('div');r.className='urow cus-row';
+    var ni=document.createElement('input');
+    ni.type='text';ni.className='cus-name';ni.maxLength=6;ni.placeholder='名称';
+    ni.value=c.n;
+    ni.addEventListener('input',function(){tmpCus[i].n=ni.value.trim();});
+    var si=document.createElement('input');
+    si.type='number';si.className='cus-sec';si.min='1';si.placeholder='秒数';
+    si.value=c.s||'';
+    si.addEventListener('input',function(){tmpCus[i].s=+si.value||0;});
+    r.appendChild(ni);r.appendChild(si);
+    var b=document.createElement('button');
+    b.type='button';
+    if(c.on){
+      b.className='u-btn on';b.textContent='已加入 / 移除';
+      b.addEventListener('click',function(){tmpCus[i].on=false;renderCusRows();});
+    }else{
+      b.className='u-btn dim';b.textContent='加入';
+      b.addEventListener('click',function(){tmpCus[i].on=true;renderCusRows();});
+    }
+    r.appendChild(b);
+    var del=document.createElement('button');
+    del.type='button';del.className='u-btn dim';del.textContent='删除';
+    del.addEventListener('click',function(){tmpCus.splice(i,1);renderCusRows();});
+    r.appendChild(del);
+    box.appendChild(r);
+  });
+}
+function renderExtraRows(){
+  var box=$('#extraRows');box.innerHTML='';
+  EXTRA_PRESETS.forEach(function(p){
+    var r=document.createElement('div');r.className='urow';
+    r.innerHTML='<span class="u-name">'+p.name+'</span><span class="u-desc">'+EXTRA_DESC[p.id]+'</span>';
+    var b=document.createElement('button');
+    b.type='button';
+    if(tmpExtras[p.id]){b.className='u-btn on';b.textContent='已加入 / 移除';}
+    else{b.className='u-btn dim';b.textContent='加入';}
+    b.addEventListener('click',function(){tmpExtras[p.id]=!tmpExtras[p.id];renderExtraRows();});
+    r.appendChild(b);
+    box.appendChild(r);
+  });
+}
+function renderCustomRows(){
+  var box=$('#customRows');box.innerHTML='';
+  tmpCustom.forEach(function(c,i){
+    var r=document.createElement('div');r.className='crow';
+    r.innerHTML='<input type="text" class="cName" placeholder="名称" maxlength="10" value="'+esc(c.name)+'">'+
+      '<input type="number" class="cPer" placeholder="周期(天)" min="1" value="'+c.period+'">'+
+      '<input type="number" class="cA" placeholder="半径(AU)" min="0.01" step="0.01" value="'+c.a+'">'+
+      '<button type="button" class="del-btn" aria-label="删除该星体">×</button>';
+    r.querySelector('.del-btn').addEventListener('click',function(){tmpCustom.splice(i,1);renderCustomRows();});
+    box.appendChild(r);
+  });
+}
+function applyOrder(){
+  var main=document.querySelector('main');
+  var foot=document.querySelector('.foot');
+  var map={moments:document.getElementById('momentsSec'),pomo:document.getElementById('pomoSec'),solar:document.getElementById('solarSec'),obs:document.getElementById('obsSec'),cards:document.getElementById('cards')};
+  cfg.order.forEach(function(k){
+    var el=map[k];
+    if(el&&el.parentNode===main){main.insertBefore(el,foot);}
+  });
+}
+function exportSettings(){
+  try{
+    var data=JSON.parse(JSON.stringify(cfg));
+    delete data.pomoState;
+    var blob=new Blob([JSON.stringify(data,null,1)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='秒与天-设置-'+(new Date().toISOString().slice(0,10)).replace(/-/g,'')+'.json';
+    document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);if(a.parentNode){a.parentNode.removeChild(a);}},800);
+  }catch(e){alert('导出失败：'+e.message);}
+}
+function importSettingsFile(file){
+  var fr=new FileReader();
+  fr.onload=function(){
+    try{
+      var data=JSON.parse(fr.result);
+      if(!data||typeof data!=='object'||Array.isArray(data)){alert('文件格式不正确');return;}
+      var ext={};try{ext=JSON.parse(localStorage.getItem(KEY)||'{}');}catch(e){}
+      var merged={};
+      for(var k in data){if(Object.prototype.hasOwnProperty.call(data,k)){merged[k]=data[k];}}
+      if(ext.today){merged.today=ext.today;}
+      if(ext.pomoState){merged.pomoState=ext.pomoState;}
+      localStorage.setItem(KEY,JSON.stringify(merged));
+      location.reload();
+    }catch(err){alert('导入失败：'+(err&&err.message?err.message:'数据无法解析'));}
+  };
+  fr.onerror=function(){alert('读取文件失败');};
+  fr.readAsText(file);
+}
+function saveSettings(){
+  var y=$('#bYear').value.trim(),mo=$('#bMonth').value.trim(),d=$('#bDay').value.trim();
+  cfg.birthday={y:y,m:mo,d:d};
+  var ms=[];
+  rowBox.querySelectorAll('.mrow').forEach(function(r){
+    var lab=r.querySelector('.mLabel').value.trim();
+    var tv=r.querySelector('.mTime').value;
+    if(!tv)return;
+    var parts=tv.split(':');
+    var h=+parts[0]||0,mm=+parts[1]||0;
+    ms.push({label:lab||hhmm(h,mm),h:h,m:mm});
+  });
+  cfg.moments=ms.slice(0,8);
+  cfg.units={};FINE_ORDER.concat(UNIT_ORDER).forEach(function(u){cfg.units[u]=tmpUnits[u];});
+  if(FINE_ORDER.concat(UNIT_ORDER).indexOf(cfg.unit)>=0&&!cfg.units[cfg.unit]){cfg.unit='s';}
+  cfg.target={y:$('#tYear').value.trim(),m:$('#tMonth').value.trim(),d:$('#tDay').value.trim()};
+  cfg.extras={pluto:tmpExtras.pluto,ceres:tmpExtras.ceres,belt:tmpExtras.belt,moon:tmpExtras.moon};
+  var cs=[];
+  $('#customRows').querySelectorAll('.crow').forEach(function(r){
+    var nm=r.querySelector('.cName').value.trim();
+    var per=+r.querySelector('.cPer').value;
+    var a=+r.querySelector('.cA').value;
+    if(nm&&per>0&&a>0){cs.push({name:nm.slice(0,10),period:per,a:a});}
+  });
+  cfg.custom=cs.slice(0,12);
+  var pw=+$('#pWork').value,ps=+$('#pShort').value,pl=+$('#pLong').value,pr=+$('#pRounds').value;
+  cfg.pomo={
+    work:(pw>=1&&pw<=480)?Math.round(pw*60):1500,
+    short:(ps>=1&&ps<=120)?Math.round(ps*60):300,
+    long:(pl>=1&&pl<=240)?Math.round(pl*60):900,
+    rounds:(pr>=1&&pr<=12)?Math.round(pr):4,
+    auto:$('#pAuto').checked,
+    beep:$('#pBeep').checked
+  };
+  pomo.rounds=cfg.pomo.rounds;
+  pomoReset();
+  var cs2=[];
+  for(var ci2=0;ci2<tmpCus.length;ci2++){
+    var crow=$('#cusRows').children[ci2];
+    if(!crow)continue;
+    var cn=crow.querySelector('.cus-name').value.trim();
+    var cssec=+crow.querySelector('.cus-sec').value;
+    if(cn&&cssec>0){cs2.push({n:cn.slice(0,6),s:cssec,on:!!tmpCus[ci2].on});}
+  }
+  cfg.cus=cs2.slice(0,8);
+  if(/^c\d+$/.test(cfg.unit)){
+    var cui=+cfg.unit.slice(1);
+    if(!cfg.cus[cui]||!cfg.cus[cui].on){cfg.unit='s';}
+  }
+  var al=+$('#axisLenInput').value;
+  cfg.axisLen=(al>=1&&al<=36500)?Math.round(al):365;
+  cfg.order=tmpOrder.slice();
+  cfg.lightDir=tmpLightDir;
+  cfg.velMode=tmpVelMode;
+  cfg.velCustom={
+    f:{name:(tmpVC.f.name||'').trim().slice(0,10)||'自定义公式',expr:(tmpVC.f.expr||'').trim().slice(0,120),on:!!tmpVC.f.on,unit:tmpVC.f.unit||'s'},
+    c:{name:(tmpVC.c.name||'').trim().slice(0,10)||'自定义常数',kmS:+tmpVC.c.kmS||0,on:!!tmpVC.c.on,unit:tmpVC.c.unit||'s'}
+  };
+  rebuildVelModes();
+  updateVelSwitch();
+  cfg.collapse=$('#collapseChk').checked;
+  cfg.index=$('#indexChk').checked;
+  save();closeSettings();
+  applyOrder();
+  initFold();
+  initIndex();
+  renderUnitSwitch();renderPropRow();renderAxisPresets();
+  renderSolar();renderAxis();
+  renderDate();tick();
+}
+
+/* ===== 单位切换 ===== */
+function renderUnitSwitch(){
+  var box=$('#unitSwitch');box.innerHTML='';
+  var list=['s','d'];
+  FINE_ORDER.forEach(function(u){if(cfg.units[u]){list.push(u);}});
+  UNIT_ORDER.forEach(function(u){if(cfg.units[u]){list.push(u);}});
+  cfg.cus.forEach(function(c,i){if(c.on){list.push('c'+i);}});
+  list.forEach(function(u){
+    var b=document.createElement('button');
+    b.type='button';b.dataset.u=u;
+    var lab=UNITS[u]?UNITS[u].label:u;
+    if(/^c\d+$/.test(u)){var ci3=+u.slice(1);lab=cfg.cus[ci3]?cfg.cus[ci3].n:u;}
+    b.textContent=lab;
+    if(cfg.unit===u){b.className='on';}
+    box.appendChild(b);
+  });
+}
+$('#unitSwitch').addEventListener('click',function(e){
+  var b=e.target.closest('button');
+  if(!b)return;
+  cfg.unit=b.dataset.u;save();renderUnitSwitch();renderSolar();renderAxis();tick();
+});
+
+/* ===== 事件 ===== */
+$('#settingsBtn').addEventListener('click',openSettings);
+$('#cancelBtn').addEventListener('click',closeSettings);
+$('#saveBtn').addEventListener('click',saveSettings);
+$('#exportBtn').addEventListener('click',exportSettings);
+$('#importBtn').addEventListener('click',function(){$('#importFile').click();});
+$('#importFile').addEventListener('change',function(){if(this.files&&this.files[0]){importSettingsFile(this.files[0]);}this.value='';});
+$('#addMoment').addEventListener('click',function(){addRow(null);});
+$('#addCustom').addEventListener('click',function(){tmpCustom.push({name:'',period:365,a:1});renderCustomRows();});
+$('#addCus').addEventListener('click',function(){tmpCus.push({n:'',s:86400,on:false});renderCusRows();});
+overlay.addEventListener('click',function(e){if(e.target===overlay){closeSettings();}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeSettings();}});
+$('#bdCard').addEventListener('click',function(){
+  if(this.classList.contains('unset')){openSettings();}
+});
+$('#settingsIndex').addEventListener('click',function(e){
+  var b=e.target.closest('.idx-btn');
+  if(!b)return;
+  var map={moments:'#addMoment',pomo:'#pWork',solar:'#addCustom',cards:'#bYear',unit:'#unitRows',layout:'#orderRows'};
+  var el=document.querySelector(map[b.dataset.go]);
+  if(!el)return;
+  var f=el.closest('.field');
+  var body=$('#settingsBody');
+  if(f&&body){body.scrollTo({top:Math.max(0,f.offsetTop-12),behavior:'smooth'});}
+});
+$('#tgtCard').addEventListener('click',function(){
+  if(this.classList.contains('unset')){openSettings();}
+});
+$('#momentsEditBtn').addEventListener('click',openSettings);
+
+/* ===== 一键折叠 ===== */
+function initFold(){
+  var btn=$('#foldBtn');
+  if(!cfg.collapse){
+    btn.style.display='none';
+    document.body.classList.remove('modules-folded');
+    return;
+  }
+  btn.style.display='';
+  btn.textContent=document.body.classList.contains('modules-folded')?'展开全部':'折叠全部';
+}
+$('#foldBtn').addEventListener('click',function(){
+  var folded=document.body.classList.toggle('modules-folded');
+  this.textContent=folded?'展开全部':'折叠全部';
+  fitAll();
+  indexHighlight();
+});
+
+/* ===== 侧边模块索引 ===== */
+var INDEX_ITEMS=[{id:'momentsSec',name:'今日时刻'},{id:'pomoSec',name:'番茄钟'},{id:'solarSec',name:'太阳系'},{id:'obsSec',name:'天文台'},{id:'cards',name:'时间卡片'}];
+function expandAll(){
+  if(document.body.classList.contains('modules-folded')){
+    document.body.classList.remove('modules-folded');
+    var b=$('#foldBtn');if(b){b.textContent='折叠全部';}
+    fitAll();
+  }
+}
+function initIndex(){
+  var nav=$('#sideIndex');
+  if(!cfg.index||!nav){if(nav){nav.style.display='none';}return;}
+  nav.style.display='';
+  nav.innerHTML='';
+  INDEX_ITEMS.forEach(function(it){
+    var a=document.createElement('a');
+    a.href='#'+it.id;a.textContent=it.name;
+    a.addEventListener('click',function(e){
+      e.preventDefault();
+      expandAll();
+      var el=document.getElementById(it.id);
+      if(el){el.scrollIntoView({behavior:'smooth',block:'start'});}
+    });
+    nav.appendChild(a);
+  });
+  indexHighlight();
+}
+function indexHighlight(){
+  var nav=$('#sideIndex');
+  if(!nav||!cfg.index)return;
+  var links=nav.querySelectorAll('a');
+  var cur=-1;
+  INDEX_ITEMS.forEach(function(it,i){
+    var el=document.getElementById(it.id);
+    if(el&&el.offsetParent!==null){
+      var r=el.getBoundingClientRect();
+      if(r.top<window.innerHeight*0.5){cur=i;}
+    }
+  });
+  links.forEach(function(a,i){a.classList.toggle('on',i===cur);});
+}
+var _idxTick=0;
+window.addEventListener('scroll',function(){
+  var nw=Date.now();
+  if(nw-_idxTick<150)return;
+  _idxTick=nw;indexHighlight();
+},false);
+
+$('#pomoLogClear').addEventListener('click',function(){cfg.pomoLog=[];save();renderPomoLog();});
+
+/* ===== 一键生成海报 ===== */
+function genPoster(){
+  var W=1080,H=1440;
+  var cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  var g=cv.getContext('2d');
+  var PAPER='#F1F0EC',INK='#171717',GRAY='#8B8881',FAINT='#ABA8A0',HAIR='#D8D5CD',ACC='#C62F1F';
+  var mono='"SF Mono","Cascadia Code","JetBrains Mono",Consolas,monospace';
+  var sans='"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif';
+  var pd=72;
+  g.fillStyle=PAPER;g.fillRect(0,0,W,H);
+  var dateStr=$('#dateLine').textContent.trim()||(new Date().toLocaleDateString('zh-CN'));
+  g.fillStyle=INK;g.font='600 34px '+sans;g.fillText('秒与天',pd,102);
+  g.textAlign='right';g.fillStyle=GRAY;g.font='500 22px '+mono;g.fillText(dateStr,W-pd,102);g.textAlign='left';
+  g.strokeStyle=HAIR;g.lineWidth=2;g.beginPath();g.moveTo(pd,130);g.lineTo(W-pd,130);g.stroke();
+  g.fillStyle=GRAY;g.font='500 26px '+sans;g.fillText('今日已过',pd,198);
+  var num=$('#dayElapsed').textContent;
+  var unit=$('#heroUnit').textContent;
+  var fs=96;g.font='600 '+fs+'px '+mono;
+  while(g.measureText(num).width>600&&fs>40){fs-=4;g.font='600 '+fs+'px '+mono;}
+  g.fillStyle=INK;g.fillText(num,pd,330);
+  g.fillStyle=GRAY;g.font='500 30px '+sans;g.fillText(unit,pd+g.measureText(num).width+20,300);
+  var pctTxt=$('#ringPct').textContent;
+  var pct=Math.min(1,Math.max(0,parseFloat(pctTxt)/100||0));
+  var cx=W-pd-100,cy=252,r=80;
+  g.lineWidth=10;g.lineCap='round';
+  g.strokeStyle=HAIR;g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);g.stroke();
+  g.strokeStyle=ACC;g.beginPath();g.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+Math.PI*2*pct);g.stroke();
+  g.lineCap='butt';
+  g.fillStyle=INK;g.font='600 42px '+mono;g.textAlign='center';g.fillText(pctTxt,cx,cy+15);g.textAlign='left';
+  g.fillStyle=GRAY;g.font='500 20px '+sans;g.textAlign='center';g.fillText('今日进度',cx,cy+45);g.textAlign='left';
+  g.strokeStyle=HAIR;g.beginPath();g.moveTo(pd,400);g.lineTo(W-pd,400);g.stroke();
+  var rows=[
+    ['距今日结束',$('#cardDayLeftNum').textContent+' '+$('#cardDayLeftUnit').textContent],
+    ['距下个整点',$('#hourLeftNum').textContent+' '+$('#hourUnit').textContent+' · '+$('#hourSub').textContent],
+    ['距生日',$('#bdDays').textContent+' '+$('#bdUnit').textContent],
+    ['出生至今',$('#aliveDays').textContent+' '+$('#aliveUnit').textContent],
+    ['目标日',$('#tgtDays').textContent+' '+$('#tgtUnit').textContent],
+    ['番茄钟',$('#pomoDone').textContent]
+  ];
+  var y0=456,rh=104,colW=(W-pd*2-40)/2;
+  rows.forEach(function(r,i){
+    var col=i%2,row=Math.floor(i/2);
+    var x=pd+col*(colW+40),y=y0+row*rh;
+    g.fillStyle=GRAY;g.font='500 24px '+sans;g.fillText(r[0],x,y);
+    g.fillStyle=INK;g.font='600 32px '+mono;
+    if(r[1].length>16){g.font='600 26px '+mono;}
+    g.fillText(r[1],x,y+46);
+  });
+  var chips=document.querySelectorAll('#momentChips .chip');
+  var bottomY=H-pd-70;
+  if(chips.length){
+    var cy0=Math.min(y0+3*rh+36,bottomY-140);
+    g.fillStyle=GRAY;g.font='500 24px '+sans;g.fillText('今日时刻',pd,cy0);
+    var chipH=66,chipW=(W-pd*2-40)/2;
+    Array.prototype.forEach.call(chips,function(c,i){
+      var col=i%2,row=Math.floor(i/2);
+      var x=pd+col*(chipW+40),y=cy0+18+row*(chipH+20);
+      if(y+chipH>bottomY){return;}
+      var nm=c.querySelector('b')?c.querySelector('b').textContent:'';
+      var tm=c.querySelector('.ch-time')?c.querySelector('.ch-time').textContent:'';
+      var sec=c.querySelector('.ch-sec')?c.querySelector('.ch-sec').textContent:'';
+      g.strokeStyle=HAIR;g.lineWidth=2;g.strokeRect(x,y,chipW,chipH);
+      g.fillStyle=INK;g.font='600 24px '+sans;g.fillText(nm,x+18,y+42);
+      g.fillStyle=FAINT;g.font='500 20px '+mono;g.fillText(tm,x+18+Math.min(g.measureText(nm).width+30,chipW-260),y+42);
+      g.fillStyle=GRAY;g.font='500 22px '+mono;g.textAlign='right';g.fillText(sec,x+chipW-18,y+42);g.textAlign='left';
+    });
+  }
+  g.strokeStyle=HAIR;g.beginPath();g.moveTo(pd,bottomY-30);g.lineTo(W-pd,bottomY-30);g.stroke();
+  g.fillStyle=FAINT;g.font='500 22px '+sans;g.fillText('所有时间，皆以秒计',pd,H-pd-24);
+  var now2=new Date();
+  g.textAlign='right';g.fillStyle=FAINT;g.fillText('生成于 '+pad(now2.getHours())+':'+pad(now2.getMinutes())+':'+pad(now2.getSeconds()),W-pd,H-pd-24);g.textAlign='left';
+  var img=document.createElement('img');
+  img.src=cv.toDataURL('image/png');
+  var pv=$('#posterPreview');pv.innerHTML='';pv.appendChild(img);
+  var a=$('#posterSave');
+  a.href=cv.toDataURL('image/png');
+  a.download='秒与天海报-'+dateStr.replace(/[^\d]/g,'')+'.png';
+  return cv;
+}
+$('#posterBtn').addEventListener('click',function(){
+  genPoster();
+  $('#posterOverlay').hidden=false;
+});
+$('#posterClose').addEventListener('click',function(){$('#posterOverlay').hidden=true;});
+$('#posterOverlay').addEventListener('click',function(e){if(e.target===this){this.hidden=true;}});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&!$('#posterOverlay').hidden){$('#posterOverlay').hidden=true;}
+});
+$('#pomoStart').addEventListener('click',pomoToggle);
+$('#pomoSkip').addEventListener('click',function(){if(pomo.mode!=='idle'){pomoNext(false);}});
+$('#pomoReset').addEventListener('click',pomoReset);
+/* 跨标签页同步：另一窗口更新番茄钟状态 / 今日计数时，本窗口跟随 */
+window.addEventListener('storage',function(e){
+  if(e.key!==KEY||!e.newValue)return;
+  try{
+    var ext=JSON.parse(e.newValue);
+    if(ext.pomoState&&(ext.pomoState.mode!==pomo.mode||ext.pomoState.endAt!==pomo.endAt||ext.pomoState.round!==pomo.round)){
+      var esm=ext.pomoState;
+      var sane=!esm.running||(esm.endAt>0&&esm.endAt>Date.now()-86400000&&esm.endAt<Date.now()+30*86400000);
+      if(sane){pomoApplyState(esm);}
+    }
+    if(ext.today&&(!cfg.today||ext.today.date===cfg.today.date)){cfg.today={date:ext.today.date,count:Math.max(0,Math.min(999,+ext.today.count||0))};}
+    if(ext.pomo&&ext.pomo.work){cfg.pomo=ext.pomo;}
+  }catch(err){}
+});
+document.addEventListener('visibilitychange',function(){if(!document.hidden){tick();}});
+
+/* ===== 启动 ===== */
+renderObs();
+applyOrder();
+if(cfg.collapse){document.body.classList.add('modules-folded');}
+initFold();
+initIndex();
+rebuildVelModes();
+updateVelSwitch();
+renderPropRow();
+renderUnitSwitch();
+renderAxisPresets();
+renderDate();
+renderSolar();
+tick();
+setInterval(tick,1000);
+window.addEventListener('resize',fitAll);
+})();
+</script>
+
+</body>
+</html>
