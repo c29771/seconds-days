@@ -658,7 +658,7 @@ var DEFAULTS={
   custom:[],
   pomo:{work:1500,short:300,long:900,rounds:4,auto:false,beep:true},
   today:{date:'',count:0},
-  order:['cards','moments','pomo','solar','obs'],lightDir:'r',velMode:'light',collapse:true,
+  order:['cards','moments','pomo','solar','obs'],lightDir:'r',velMode:'light',collapse:false,
   pomoLog:[],index:true,pomoState:{mode:'idle',running:false,endAt:0,round:0,pausedLeft:0},
   velCustom:{f:{name:'自定义公式',expr:'400*Math.pow(x,-0.5)',on:false,unit:'s'},c:{name:'自定义常数',kmS:100,on:false,unit:'s'}}
 };
@@ -881,7 +881,7 @@ function load(){
   if(ld0==='l'||ld0==='u'||ld0==='d'){lightDir=ld0;}
   else{var ldn=+ld0;if(isFinite(ldn)&&String(ld0).trim()!==''){lightDir=String(((ldn%360)+360)%360);}}
   var velMode=(o&&(o.velMode==='light'||o.velMode==='sound'||o.velMode==='solarwind'||o.velMode==='bolt'||o.velMode==='customf'||o.velMode==='customc'))?o.velMode:'light';
-  var collapse=o?o.collapse!==false:true;
+  var collapse=o?o.collapse===true:false;
   var pomoLog=(o&&Array.isArray(o.pomoLog))?o.pomoLog.slice(-50):[];
   var index=o?o.index!==false:true;
   var pomoState=(o&&o.pomoState&&typeof o.pomoState==='object')?o.pomoState:null;
